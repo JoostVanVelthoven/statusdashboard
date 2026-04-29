@@ -9,18 +9,18 @@ const REQUEST_TIMEOUT_MS = 10000
 
 function toReadableError(error: unknown): Error {
   if (error instanceof DOMException && error.name === 'AbortError') {
-    return new Error('Timeout bij ophalen van de statuspagina.')
+    return new Error('Timeout while fetching status page.')
   }
 
   if (error instanceof TypeError) {
-    return new Error('Ophalen mislukt (mogelijk CORS of netwerkfout).')
+    return new Error('Request failed (possible CORS or network error).')
   }
 
   if (error instanceof Error) {
     return error
   }
 
-  return new Error('Onbekende fout tijdens ophalen van de statuspagina.')
+  return new Error('Unknown error while fetching status page.')
 }
 
 async function fetchJson<T>(url: string): Promise<T> {
@@ -85,7 +85,7 @@ export function normalizeStatusPageUrl(rawUrl: string): string {
   const trimmedUrl = rawUrl.trim()
 
   if (!trimmedUrl) {
-    throw new Error('URL is verplicht.')
+    throw new Error('URL is required.')
   }
 
   let parsedUrl: URL
@@ -93,11 +93,11 @@ export function normalizeStatusPageUrl(rawUrl: string): string {
   try {
     parsedUrl = new URL(trimmedUrl)
   } catch {
-    throw new Error('Ongeldig URL-formaat. Gebruik een volledige HTTPS link.')
+    throw new Error('Invalid URL format. Use a full HTTPS URL.')
   }
 
   if (parsedUrl.protocol !== 'https:') {
-    throw new Error('Alleen HTTPS URL\'s zijn toegestaan.')
+    throw new Error('Only HTTPS URLs are allowed.')
   }
 
   parsedUrl.hash = ''
@@ -139,19 +139,19 @@ export async function detectStatusPageProvider(rawBaseUrl: string): Promise<Prov
     statusResult.status === 'rejected'
       ? statusResult.reason instanceof Error
         ? statusResult.reason.message
-        : 'onbekende fout'
-      : 'ongeldig status.json formaat'
+        : 'unknown error'
+      : 'invalid status.json format'
 
   const summaryError =
     summaryResult.status === 'rejected'
       ? summaryResult.reason instanceof Error
         ? summaryResult.reason.message
-        : 'onbekende fout'
+        : 'unknown error'
       : isAtlassianStatusPayload(summaryResult.value)
-        ? 'summary.json is bereikbaar, maar status.json ontbreekt'
-        : 'ongeldig summary.json formaat'
+        ? 'summary.json is reachable, but status.json is missing'
+        : 'invalid summary.json format'
 
   throw new Error(
-    `Geen ondersteunde statuspagina gevonden. status.json: ${statusError}. summary.json: ${summaryError}.`,
+    `No supported status page found. status.json: ${statusError}. summary.json: ${summaryError}.`,
   )
 }

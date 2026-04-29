@@ -17,17 +17,17 @@ type StatusPageFormProps = {
 
 function validateHttpsUrl(value: string): string | null {
   if (!value.trim()) {
-    return 'URL is verplicht.'
+    return 'URL is required.'
   }
 
   try {
     const parsed = new URL(value.trim())
 
     if (parsed.protocol !== 'https:') {
-      return 'Gebruik een HTTPS URL.'
+      return 'Use an HTTPS URL.'
     }
   } catch {
-    return 'Ongeldig URL-formaat. Gebruik een volledige HTTPS link.'
+    return 'Invalid URL format. Use a full HTTPS URL.'
   }
 
   return null
@@ -67,14 +67,14 @@ export function StatusPageForm({
     <form className="space-y-5" onSubmit={handleSubmit}>
       <div>
         <label className="mb-2 block text-sm font-semibold uppercase tracking-[0.08em] text-slate-300" htmlFor="status-page-name">
-          Naam (optioneel)
+          Name (optional)
         </label>
         <input
           id="status-page-name"
           type="text"
           value={name}
           onChange={(event) => setName(event.target.value)}
-          placeholder="Bijv. Cyso"
+          placeholder="e.g. Cyso"
           className="w-full rounded-xl border border-slate-600/80 bg-[#0f1714] px-4 py-3 text-lg text-slate-100 outline-none transition focus:border-emerald-400"
         />
       </div>
@@ -92,7 +92,9 @@ export function StatusPageForm({
           className="w-full rounded-xl border border-slate-600/80 bg-[#0f1714] px-4 py-3 text-lg text-slate-100 outline-none transition focus:border-emerald-400"
           required
         />
-        <p className="mt-2 text-sm text-slate-400">Atlassian Statuspage wordt automatisch gedetecteerd via `/api/v2/status.json`.</p>
+        <p className="mt-2 text-sm text-slate-400">
+          Atlassian Statuspage is detected automatically via `/api/v2/status.json`.
+        </p>
       </div>
 
       {validationError ? <p className="text-sm font-medium text-rose-300">{validationError}</p> : null}
@@ -104,7 +106,7 @@ export function StatusPageForm({
           disabled={isSubmitting}
           className="rounded-xl bg-emerald-400 px-5 py-3 text-base font-semibold uppercase tracking-[0.08em] text-[#042416] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
         >
-          {isSubmitting ? 'Valideren...' : submitLabel}
+          {isSubmitting ? 'Validating...' : submitLabel}
         </button>
         {onCancel ? (
           <button
@@ -112,7 +114,7 @@ export function StatusPageForm({
             onClick={onCancel}
             className="rounded-xl border border-slate-600 px-4 py-3 text-sm font-semibold uppercase tracking-[0.08em] text-slate-300 transition hover:border-slate-400"
           >
-            Annuleren
+            Cancel
           </button>
         ) : null}
         <button
@@ -120,7 +122,7 @@ export function StatusPageForm({
           onClick={onAddSample}
           className="rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-4 py-3 text-sm font-semibold text-emerald-300 transition hover:bg-emerald-500/20"
         >
-          + Sample Cyso Status Toevoegen
+          + Add Sample Cyso Status
         </button>
       </div>
     </form>

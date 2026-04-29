@@ -2,29 +2,30 @@ import { useMemo, useState } from 'react'
 import { Link, Route, Routes, useLocation } from 'react-router-dom'
 import { StatusDashboard } from './components/StatusDashboard'
 import { loadStatusPages, saveStatusPages } from './services/localStorageStatusPages'
+import { JsonImportExportPage } from './pages/JsonImportExportPage'
 import { SettingsPage } from './pages/SettingsPage'
 import type { StoredStatusPage } from './types/status'
 
 function formatRelativeRefresh(lastRefreshAt: Date | null): string {
   if (!lastRefreshAt) {
-    return 'Nog niet ververst'
+    return 'Not refreshed yet'
   }
 
   const now = Date.now()
   const elapsedSeconds = Math.max(0, Math.floor((now - lastRefreshAt.getTime()) / 1000))
 
   if (elapsedSeconds < 60) {
-    return `${elapsedSeconds}s geleden`
+    return `${elapsedSeconds}s ago`
   }
 
   const elapsedMinutes = Math.floor(elapsedSeconds / 60)
 
   if (elapsedMinutes < 60) {
-    return `${elapsedMinutes}m geleden`
+    return `${elapsedMinutes}m ago`
   }
 
   const elapsedHours = Math.floor(elapsedMinutes / 60)
-  return `${elapsedHours}u geleden`
+  return `${elapsedHours}h ago`
 }
 
 function NavLink({ to, label, isActive }: { to: string; label: string; isActive: boolean }) {
@@ -50,6 +51,7 @@ export default function App() {
 
   const isDashboardRoute = location.pathname === '/'
   const isSettingsRoute = location.pathname === '/settings'
+  const isJsonRoute = location.pathname === '/settings-json'
 
   const refreshLabel = useMemo(() => formatRelativeRefresh(lastRefreshAt), [lastRefreshAt])
 
@@ -67,6 +69,7 @@ export default function App() {
             <div className="hidden items-center gap-6 md:flex">
               <NavLink to="/" label="Dashboard" isActive={isDashboardRoute} />
               <NavLink to="/settings" label="Settings" isActive={isSettingsRoute} />
+              <NavLink to="/settings-json" label="JSON" isActive={isJsonRoute} />
             </div>
           </div>
 
@@ -76,11 +79,11 @@ export default function App() {
               type="button"
               className="rounded-md p-2 transition hover:bg-slate-800/70"
               onClick={() => setRefreshToken((current) => current + 1)}
-              title="Nu verversen"
+              title="Refresh now"
             >
               ↻
             </button>
-            <Link to="/settings" className="rounded-md p-2 transition hover:bg-slate-800/70" title="Instellingen">
+            <Link to="/settings" className="rounded-md p-2 transition hover:bg-slate-800/70" title="Settings">
               ⚙
             </Link>
           </div>
@@ -100,6 +103,10 @@ export default function App() {
           }
         />
         <Route path="/settings" element={<SettingsPage pages={pages} onPagesChange={handlePagesChange} />} />
+        <Route
+          path="/settings-json"
+          element={<JsonImportExportPage pages={pages} onPagesChange={handlePagesChange} />}
+        />
       </Routes>
     </div>
   )

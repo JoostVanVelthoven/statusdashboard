@@ -1,5 +1,14 @@
 import { STATUS_PAGES_STORAGE_KEY, type StoredStatusPage } from '../types/status'
 
+export interface StatusSettingsExport {
+  schemaVersion: number
+  exportedAt: string
+  settings: {
+    storageKey: string
+    pages: StoredStatusPage[]
+  }
+}
+
 function toStringArray(value: unknown): string[] {
   if (!Array.isArray(value)) {
     return []
@@ -40,17 +49,20 @@ function parseStoredPage(value: unknown): StoredStatusPage | null {
   }
 }
 
+function parseStoredPagesValue(value: unknown): StoredStatusPage[] {
+  if (!Array.isArray(value)) {
+    return []
+  }
+
+  return value
+    .map((entry) => parseStoredPage(entry))
+    .filter((entry): entry is StoredStatusPage => entry !== null)
+}
+
 function parseStoredPages(rawValue: string): StoredStatusPage[] {
   try {
     const parsed = JSON.parse(rawValue)
-
-    if (!Array.isArray(parsed)) {
-      return []
-    }
-
-    return parsed
-      .map((entry) => parseStoredPage(entry))
-      .filter((entry): entry is StoredStatusPage => entry !== null)
+    return parseStoredPagesValue(parsed)
   } catch {
     return []
   }
@@ -76,4 +88,57 @@ export function saveStatusPages(pages: StoredStatusPage[]): void {
   }
 
   window.localStorage.setItem(STATUS_PAGES_STORAGE_KEY, JSON.stringify(pages))
+}
+
+export function buildStatusSettingsExport(pages: StoredStatusPage[]): StatusSettingsExport {
+  return {
+    schemaVersion: 1,
+    exportedAt: new Date().toISOString(),
+    settings: {
+      storageKey: STATUS_PAGES_STORAGE_KEY,
+      pages,
+    },
+  }
+}
+
+export function formatStatusSettingsExport(pages: StoredStatusPage[]): string {
+  return JSON.stringify(buildStatusSettingsExport(pages), null, 2)
+}
+
+export function parseStatusSettingsImport(rawJson: string): StoredStatusPage[] {
+  let parsed: unknown
+
+  try {
+    parsed = JSON.parse(rawJson)
+  } catch {
+    throw new Error('JSON is invalid.')
+  }
+
+  if (Array.isArray(parsed)) {
+    const pages = parseStoredPagesValue(parsed)
+
+    if (parsed.length > 0 && pages.length === 0) {
+      throw new Error('JSON array contains no valid status page records.')
+    }
+
+    return pages
+  }
+
+  if (typeof parsed === 'object' && parsed !== null) {
+    const maybeSettings = parsed as Partial<StatusSettingsExport>
+    const rawPages = maybeSettings.settings?.pages
+    const pages = parseStoredPagesValue(rawPages)
+
+    if (Array.isArray(rawPages) && rawPages.length > 0 && pages.length === 0) {
+      throw new Error('settings.pages contains no valid status page records.')
+    }
+
+    if (pages.length > 0 || (Array.isArray(rawPages) && rawPages.length === 0)) {
+      return pages
+    }
+  }
+
+  throw new Error(
+    'Unknown import format. Expected an array of pages or an export object with settings.pages.',
+  )
 }

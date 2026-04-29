@@ -16,7 +16,7 @@ type StatusDashboardProps = {
 function getDefaultStatus(): RuntimeStatus {
   return {
     indicator: 'unknown',
-    description: 'Wachten op eerste status ophalen',
+    description: 'Waiting for first status fetch',
     fetchedAt: null,
     lastSuccessfulAt: null,
     latencyMs: null,
@@ -89,7 +89,7 @@ export function StatusDashboard({
           error:
             pageResult.reason instanceof Error
               ? pageResult.reason.message
-              : 'Onbekende fout tijdens status ophalen.',
+              : 'Unknown error while fetching status.',
           isLoading: false,
         }
       })
@@ -140,7 +140,7 @@ export function StatusDashboard({
         const alreadyExists = pages.some((page) => page.url === detection.baseUrl)
 
         if (alreadyExists) {
-          throw new Error('Deze statuspagina staat al in de lijst.')
+          throw new Error('This status page is already in the list.')
         }
 
         const now = new Date().toISOString()
@@ -166,7 +166,7 @@ export function StatusDashboard({
         setQuickUrl('')
       } catch (error) {
         setAddError(
-          error instanceof Error ? error.message : 'Onbekende fout bij toevoegen van statuspagina.',
+          error instanceof Error ? error.message : 'Unknown error while adding status page.',
         )
       } finally {
         setIsAddingPage(false)
@@ -191,21 +191,21 @@ export function StatusDashboard({
     <main className="mx-auto w-full max-w-[1920px] p-8 md:p-10">
       <header className="mb-10 flex flex-col justify-between gap-6 xl:flex-row xl:items-end">
         <div>
-          <h1 className="text-5xl font-semibold tracking-tight text-slate-100">Integratie Status Monitor</h1>
-          <p className="mt-3 text-2xl text-slate-300">Systeemomgevingsbewaking • Operationele Realtime-gegevens</p>
+          <h1 className="text-5xl font-semibold tracking-tight text-slate-100">Integration Status Monitor</h1>
+          <p className="mt-3 text-2xl text-slate-300">Environment monitoring • Operational real-time data</p>
         </div>
         <div className="flex items-center gap-4 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-emerald-300">
           <span className="status-pulse h-3 w-3 rounded-full bg-emerald-300" aria-hidden="true" />
-          <span className="text-xl font-medium">Systeem Online</span>
-          {isPolling ? <span className="text-sm text-emerald-200/80">(Verversing...)</span> : null}
+          <span className="text-xl font-medium">System Online</span>
+          {isPolling ? <span className="text-sm text-emerald-200/80">(Refreshing...)</span> : null}
         </div>
       </header>
 
       {pages.length === 0 ? (
         <section className="mx-auto mt-12 max-w-2xl rounded-2xl border border-dashed border-slate-500/60 bg-[#141d1a]/70 p-10 text-center">
-          <h2 className="text-4xl font-semibold text-slate-100">Geen monitoring</h2>
+          <h2 className="text-4xl font-semibold text-slate-100">No monitoring configured</h2>
           <p className="mx-auto mt-4 max-w-lg text-xl text-slate-300">
-            Er zijn momenteel geen actieve service monitors geconfigureerd.
+            There are currently no active service monitors configured.
           </p>
           <form
             className="mx-auto mt-8 flex max-w-xl flex-col gap-3"
@@ -227,7 +227,7 @@ export function StatusDashboard({
               disabled={isAddingPage}
               className="rounded-xl bg-emerald-400 px-6 py-3 text-lg font-semibold text-[#042416] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {isAddingPage ? 'Valideren...' : 'Statuspagina Toevoegen'}
+              {isAddingPage ? 'Validating...' : 'Add Status Page'}
             </button>
           </form>
           <div className="mt-4 flex flex-wrap justify-center gap-3">
@@ -239,13 +239,13 @@ export function StatusDashboard({
               disabled={isAddingPage}
               className="rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-6 py-3 text-lg font-semibold text-emerald-300 transition hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              + Sample Cyso Status Toevoegen
+              + Add Sample Cyso Status
             </button>
             <Link
               to="/settings"
               className="rounded-xl border border-slate-600 px-6 py-3 text-lg font-semibold text-slate-200 transition hover:border-slate-400"
             >
-              Naar instellingen
+              Go to settings
             </Link>
           </div>
           {addError ? <p className="mt-4 text-sm text-rose-300">{addError}</p> : null}

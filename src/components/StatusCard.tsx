@@ -42,16 +42,16 @@ const STATUS_PRESENTATION: Record<string, StatusPresentation> = {
 
 function formatTime(isoTimestamp: string | null): string {
   if (!isoTimestamp) {
-    return 'Nog niet'
+    return 'Not yet'
   }
 
   const parsed = new Date(isoTimestamp)
 
   if (Number.isNaN(parsed.valueOf())) {
-    return 'Onbekend'
+    return 'Unknown'
   }
 
-  return parsed.toLocaleTimeString('nl-NL', {
+  return parsed.toLocaleTimeString('en-GB', {
     hour: '2-digit',
     minute: '2-digit',
     second: '2-digit',
@@ -99,13 +99,13 @@ export function StatusCard({ page, status }: StatusCardProps) {
 
       <div className="border-t border-slate-700/70 pt-4 text-sm text-slate-300">
         <div className="flex items-center justify-between gap-4">
-          <span>Laatst succesvol opgehaald: {formatTime(status.lastSuccessfulAt)}</span>
+          <span>Last successful fetch: {formatTime(status.lastSuccessfulAt)}</span>
           {status.latencyMs !== null ? <span>{status.latencyMs}ms</span> : <span>-</span>}
         </div>
         <p className="mt-2 text-xs text-slate-400">
-          Relevante componenten: {page.monitoredComponentIds.length > 0 ? page.monitoredComponentIds.length : 'alle'}
+          Relevant components: {page.monitoredComponentIds.length > 0 ? page.monitoredComponentIds.length : 'all'}
         </p>
-        {status.error ? <p className="mt-3 text-sm text-rose-300">Fout: {status.error}</p> : null}
+        {status.error ? <p className="mt-3 text-sm text-rose-300">Error: {status.error}</p> : null}
       </div>
     </article>
   )

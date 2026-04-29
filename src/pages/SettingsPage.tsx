@@ -61,7 +61,7 @@ export function SettingsPage({ pages, onPagesChange }: SettingsPageProps) {
       const duplicate = pages.find((page) => page.url === detection.baseUrl && page.id !== editingPage?.id)
 
       if (duplicate) {
-        throw new Error('Deze statuspagina bestaat al in de configuratie.')
+        throw new Error('This status page already exists in the configuration.')
       }
 
       const discoveredComponentIds = detection.availableComponents.map((component) => component.id)
@@ -71,7 +71,7 @@ export function SettingsPage({ pages, onPagesChange }: SettingsPageProps) {
         : discoveredComponentIds
 
       if (editingPage && detection.availableComponents.length > 0 && monitoredComponentIds.length === 0) {
-        throw new Error('Selecteer minimaal 1 relevante component.')
+        throw new Error('Select at least 1 relevant component.')
       }
 
       const nextPage: StoredStatusPage = {
@@ -96,14 +96,14 @@ export function SettingsPage({ pages, onPagesChange }: SettingsPageProps) {
       setSelectedComponentIds([])
       setComponentsError(null)
     } catch (error) {
-      setFormError(error instanceof Error ? error.message : 'Onbekende fout bij opslaan van pagina.')
+      setFormError(error instanceof Error ? error.message : 'Unknown error while saving page.')
     } finally {
       setIsSubmitting(false)
     }
   }
 
   const handleDelete = (pageId: string) => {
-    const shouldDelete = window.confirm('Weet je zeker dat je deze statuspagina wilt verwijderen?')
+    const shouldDelete = window.confirm('Are you sure you want to delete this status page?')
 
     if (!shouldDelete) {
       return
@@ -134,7 +134,7 @@ export function SettingsPage({ pages, onPagesChange }: SettingsPageProps) {
       const alreadyExists = pages.some((page) => page.url === detection.baseUrl)
 
       if (alreadyExists) {
-        throw new Error('Sample URL bestaat al in de lijst.')
+        throw new Error('Sample URL already exists in the list.')
       }
 
       const now = new Date().toISOString()
@@ -157,7 +157,7 @@ export function SettingsPage({ pages, onPagesChange }: SettingsPageProps) {
 
       applyPages(nextPages)
     } catch (error) {
-      setFormError(error instanceof Error ? error.message : 'Sample toevoegen mislukt.')
+      setFormError(error instanceof Error ? error.message : 'Failed to add sample.')
     } finally {
       setIsSubmitting(false)
     }
@@ -173,7 +173,7 @@ export function SettingsPage({ pages, onPagesChange }: SettingsPageProps) {
       if (!page.summaryApiUrl) {
         setAvailableComponents([])
         setSelectedComponentIds([])
-        setComponentsError('Voor deze pagina is geen summary.json endpoint beschikbaar.')
+        setComponentsError('No summary.json endpoint is available for this page.')
         return
       }
 
@@ -187,7 +187,7 @@ export function SettingsPage({ pages, onPagesChange }: SettingsPageProps) {
       setAvailableComponents([])
       setSelectedComponentIds([])
       setComponentsError(
-        error instanceof Error ? error.message : 'Kon componenten niet laden uit summary.json.',
+        error instanceof Error ? error.message : 'Could not load components from summary.json.',
       )
     } finally {
       setIsLoadingComponents(false)
@@ -206,22 +206,30 @@ export function SettingsPage({ pages, onPagesChange }: SettingsPageProps) {
     <main className="mx-auto w-full max-w-[1720px] p-8 md:p-10">
       <header className="mb-10 flex flex-col justify-between gap-6 lg:flex-row lg:items-center">
         <div>
-          <h1 className="text-5xl font-semibold tracking-tight text-slate-100">Instellingen</h1>
-          <p className="mt-3 text-2xl text-slate-300">Beheer uw statusmonitoren en configuratie van externe bronnen.</p>
+          <h1 className="text-5xl font-semibold tracking-tight text-slate-100">Settings</h1>
+          <p className="mt-3 text-2xl text-slate-300">Manage your status monitors and external source configuration.</p>
         </div>
-        <Link
-          to="/"
-          className="inline-flex items-center justify-center rounded-xl bg-slate-700/80 px-6 py-3 text-xl font-semibold text-slate-200 transition hover:bg-slate-600"
-        >
-          Terug naar Dashboard
-        </Link>
+        <div className="flex flex-wrap gap-3">
+          <Link
+            to="/settings-json"
+            className="inline-flex items-center justify-center rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-6 py-3 text-xl font-semibold text-emerald-300 transition hover:bg-emerald-500/20"
+          >
+            JSON Import/Export
+          </Link>
+          <Link
+            to="/"
+            className="inline-flex items-center justify-center rounded-xl bg-slate-700/80 px-6 py-3 text-xl font-semibold text-slate-200 transition hover:bg-slate-600"
+          >
+            Back to Dashboard
+          </Link>
+        </div>
       </header>
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-12">
         <section className="space-y-6 xl:col-span-5">
           <div className="rounded-2xl border border-slate-700/70 bg-[#141d1a]/90 p-6 shadow-[0_16px_45px_rgba(0,0,0,0.35)]">
             <h2 className="mb-6 text-4xl font-semibold text-slate-100">
-              {editingPage ? 'Statuspagina Bewerken' : 'Statuspagina Toevoegen'}
+              {editingPage ? 'Edit Status Page' : 'Add Status Page'}
             </h2>
             <StatusPageForm
               key={editingPage?.id ?? 'create'}
@@ -235,7 +243,7 @@ export function SettingsPage({ pages, onPagesChange }: SettingsPageProps) {
               }
               isSubmitting={isSubmitting}
               errorMessage={formError}
-              submitLabel={editingPage ? 'Wijziging Opslaan' : 'Pagina Toevoegen'}
+              submitLabel={editingPage ? 'Save Changes' : 'Add Page'}
               onSubmit={(values) => {
                 void handleSubmit(values)
               }}
@@ -257,14 +265,14 @@ export function SettingsPage({ pages, onPagesChange }: SettingsPageProps) {
           </div>
 
           <div className="rounded-2xl border border-slate-700/70 bg-[#141d1a]/90 p-6 shadow-[0_16px_45px_rgba(0,0,0,0.35)]">
-            <h3 className="text-2xl font-semibold text-slate-100">Belangrijke Componenten</h3>
+            <h3 className="text-2xl font-semibold text-slate-100">Key Components</h3>
             {!editingPage ? (
-              <p className="mt-3 text-sm text-slate-400">Klik eerst op Bewerken bij een bestaande pagina om relevante componenten te kiezen.</p>
+              <p className="mt-3 text-sm text-slate-400">Click Edit on an existing page first to choose relevant components.</p>
             ) : null}
-            {isLoadingComponents ? <p className="mt-3 text-sm text-slate-300">Componenten laden...</p> : null}
+            {isLoadingComponents ? <p className="mt-3 text-sm text-slate-300">Loading components...</p> : null}
             {componentsError ? <p className="mt-3 text-sm text-rose-300">{componentsError}</p> : null}
             {editingPage && !isLoadingComponents && availableComponents.length === 0 && !componentsError ? (
-              <p className="mt-3 text-sm text-slate-400">Geen componenten gevonden in summary.json voor deze pagina.</p>
+              <p className="mt-3 text-sm text-slate-400">No components found in summary.json for this page.</p>
             ) : null}
             {editingPage && availableComponents.length > 0 ? (
               <div className="mt-4 max-h-72 space-y-2 overflow-auto pr-1">
@@ -291,32 +299,33 @@ export function SettingsPage({ pages, onPagesChange }: SettingsPageProps) {
             ) : null}
             {editingPage && availableComponents.length > 0 ? (
               <p className="mt-3 text-xs text-slate-400">
-                Alleen aangevinkte componenten bepalen de kleurstatus op het dashboard.
+                Only checked components determine the status color on the dashboard.
               </p>
             ) : null}
           </div>
+
         </section>
 
         <section className="xl:col-span-7">
           <div className="overflow-hidden rounded-2xl border border-slate-700/70 bg-[#141d1a]/90 shadow-[0_16px_45px_rgba(0,0,0,0.35)]">
             <div className="flex items-center justify-between border-b border-slate-700/70 p-6">
-              <h2 className="text-4xl font-semibold text-slate-100">Beheer Pagina's</h2>
+              <h2 className="text-4xl font-semibold text-slate-100">Manage Pages</h2>
               <span className="rounded-full bg-slate-700/70 px-3 py-1 text-xs font-semibold uppercase tracking-[0.08em] text-slate-300">
-                {pages.length} actief
+                {pages.length} active
               </span>
             </div>
 
             {pages.length === 0 ? (
-              <div className="p-6 text-slate-300">Nog geen statuspagina's opgeslagen.</div>
+              <div className="p-6 text-slate-300">No status pages stored yet.</div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[760px] text-left">
                   <thead className="bg-slate-800/70 text-xs uppercase tracking-[0.08em] text-slate-300">
                     <tr>
-                      <th className="p-4">Naam / Provider</th>
+                      <th className="p-4">Name / Provider</th>
                       <th className="p-4">Endpoint</th>
-                      <th className="p-4">Relevante componenten</th>
-                      <th className="p-4 text-right">Acties</th>
+                      <th className="p-4">Relevant components</th>
+                      <th className="p-4 text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-700/70">
@@ -330,7 +339,7 @@ export function SettingsPage({ pages, onPagesChange }: SettingsPageProps) {
                         <td className="p-4">
                           <span className="inline-flex items-center gap-2 rounded bg-emerald-500/20 px-3 py-1 text-sm font-semibold text-emerald-300">
                             <span className="h-2 w-2 rounded-full bg-emerald-300" aria-hidden="true" />
-                            {page.monitoredComponentIds.length} geselecteerd
+                            {page.monitoredComponentIds.length} selected
                           </span>
                         </td>
                         <td className="p-4 text-right">
@@ -342,14 +351,14 @@ export function SettingsPage({ pages, onPagesChange }: SettingsPageProps) {
                               }}
                               className="rounded-lg border border-slate-600 px-3 py-2 text-xs font-semibold uppercase tracking-[0.08em] text-slate-200 transition hover:border-slate-400"
                             >
-                              Bewerken
+                              Edit
                             </button>
                             <button
                               type="button"
                               onClick={() => handleDelete(page.id)}
                               className="rounded-lg border border-rose-500/50 px-3 py-2 text-xs font-semibold uppercase tracking-[0.08em] text-rose-300 transition hover:bg-rose-500/20"
                             >
-                              Verwijderen
+                              Delete
                             </button>
                           </div>
                         </td>

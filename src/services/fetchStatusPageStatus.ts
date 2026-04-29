@@ -10,18 +10,18 @@ const REQUEST_TIMEOUT_MS = 10000
 
 function toReadableError(error: unknown): Error {
   if (error instanceof DOMException && error.name === 'AbortError') {
-    return new Error('Timeout bij ophalen van status.')
+    return new Error('Timeout while fetching status.')
   }
 
   if (error instanceof TypeError) {
-    return new Error('Ophalen mislukt (mogelijk CORS of netwerkfout).')
+    return new Error('Request failed (possible CORS or network error).')
   }
 
   if (error instanceof Error) {
     return error
   }
 
-  return new Error('Onbekende fout tijdens status ophalen.')
+  return new Error('Unknown error while fetching status.')
 }
 
 async function fetchJson<T>(url: string): Promise<T> {
@@ -98,7 +98,7 @@ function indicatorSeverity(indicator: AtlassianIndicator): number {
 
 function mapPayloadToStatus(pageId: string, payload: AtlassianStatusPayload, latencyMs: number): StatusFetchResult {
   const indicator = normalizeIndicator(payload.status?.indicator)
-  const description = payload.status?.description?.trim() || 'Onbekende statusomschrijving'
+  const description = payload.status?.description?.trim() || 'Unknown status description'
   const timestamp = new Date().toISOString()
 
   return {
@@ -123,7 +123,7 @@ function mapMonitoredComponentsToStatus(
     return {
       pageId,
       indicator: 'unknown',
-      description: 'Geen componenten gevonden in summary.json.',
+      description: 'No components found in summary.json.',
       fetchedAt: timestamp,
       lastSuccessfulAt: timestamp,
       latencyMs,
@@ -144,7 +144,7 @@ function mapMonitoredComponentsToStatus(
     return {
       pageId,
       indicator: 'unknown',
-      description: 'Geen geselecteerde componenten gevonden in summary.json.',
+      description: 'No selected components found in summary.json.',
       fetchedAt: timestamp,
       lastSuccessfulAt: timestamp,
       latencyMs,
@@ -178,8 +178,8 @@ function mapMonitoredComponentsToStatus(
 
   const description =
     affected.length === 0
-      ? `${selected.length} geselecteerde componenten operationeel`
-      : `${affected.length}/${selected.length} geselecteerde componenten verstoord`
+      ? `${selected.length} selected components operational`
+      : `${affected.length}/${selected.length} selected components degraded`
 
   return {
     pageId,
