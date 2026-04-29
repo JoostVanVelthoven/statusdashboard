@@ -58,17 +58,38 @@ function formatTime(isoTimestamp: string | null): string {
   })
 }
 
+function formatComponentStatus(status: string): string {
+  return status.replace(/_/g, ' ')
+}
+
 type StatusCardProps = {
   page: StoredStatusPage
   status: RuntimeStatus
+  onOpenSettings?: () => void
 }
 
-export function StatusCard({ page, status }: StatusCardProps) {
+export function StatusCard({ page, status, onOpenSettings }: StatusCardProps) {
   const presentation = STATUS_PRESENTATION[status.indicator] ?? STATUS_PRESENTATION.unknown
+  const isClickable = typeof onOpenSettings === 'function'
 
   return (
     <article
-      className={`rounded-2xl border bg-[#141d1a]/90 p-6 shadow-[0_16px_45px_rgba(0,0,0,0.35)] transition-colors ${presentation.borderClass}`}
+      className={`rounded-2xl border bg-[#141d1a]/90 p-6 shadow-[0_16px_45px_rgba(0,0,0,0.35)] transition-colors ${presentation.borderClass} ${
+        isClickable ? 'cursor-pointer hover:border-emerald-400/50' : ''
+      }`}
+      onClick={onOpenSettings}
+      role={isClickable ? 'button' : undefined}
+      tabIndex={isClickable ? 0 : undefined}
+      onKeyDown={(event) => {
+        if (!isClickable) {
+          return
+        }
+
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault()
+          onOpenSettings?.()
+        }
+      }}
     >
       <header className="mb-8 flex items-start justify-between gap-4">
         <div>
@@ -105,6 +126,20 @@ export function StatusCard({ page, status }: StatusCardProps) {
         <p className="mt-2 text-xs text-slate-400">
           Relevant components: {page.monitoredComponentIds.length > 0 ? page.monitoredComponentIds.length : 'all'}
         </p>
+        {status.degradedComponents.length > 0 ? (
+          <div className="mt-3 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3">
+            <p className="text-xs font-semibold uppercase tracking-[0.08em] text-amber-200">
+              Degraded Components
+            </p>
+            <ul className="mt-2 space-y-1 text-xs text-amber-100">
+              {status.degradedComponents.map((component) => (
+                <li key={component.id}>
+                  {component.name}: {formatComponentStatus(component.status)}
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
         {status.error ? <p className="mt-3 text-sm text-rose-300">Error: {status.error}</p> : null}
       </div>
     </article>

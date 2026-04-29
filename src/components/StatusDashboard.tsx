@@ -1,22 +1,39 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { detectStatusPageProvider } from '../services/detectStatusPageProvider'
 import { fetchStatusPageStatus } from '../services/fetchStatusPageStatus'
 import { saveStatusPages } from '../services/localStorageStatusPages'
 import { StatusCard } from './StatusCard'
-import type { RuntimeStatus, StoredStatusPage } from '../types/status'
+import type { AtlassianIndicator, RuntimeStatus, StoredStatusPage } from '../types/status'
 
 type StatusDashboardProps = {
   pages: StoredStatusPage[]
   refreshToken: number
   onPagesChange: (pages: StoredStatusPage[]) => void
   onLastRefreshChange: (date: Date | null) => void
+  onOverallIndicatorChange: (indicator: AtlassianIndicator) => void
+}
+
+function indicatorSeverity(indicator: AtlassianIndicator): number {
+  switch (indicator) {
+    case 'none':
+      return 0
+    case 'minor':
+      return 1
+    case 'major':
+      return 2
+    case 'critical':
+      return 3
+    default:
+      return -1
+  }
 }
 
 function getDefaultStatus(): RuntimeStatus {
   return {
     indicator: 'unknown',
     description: 'Waiting for first status fetch',
+    degradedComponents: [],
     fetchedAt: null,
     lastSuccessfulAt: null,
     latencyMs: null,
@@ -30,7 +47,9 @@ export function StatusDashboard({
   refreshToken,
   onPagesChange,
   onLastRefreshChange,
+  onOverallIndicatorChange,
 }: StatusDashboardProps) {
+  const navigate = useNavigate()
   const [statusByPageId, setStatusByPageId] = useState<Record<string, RuntimeStatus>>({})
   const [isPolling, setIsPolling] = useState(false)
   const [quickUrl, setQuickUrl] = useState('')
@@ -41,6 +60,7 @@ export function StatusDashboard({
     if (pages.length === 0) {
       setStatusByPageId({})
       onLastRefreshChange(null)
+      onOverallIndicatorChange('unknown')
       return
     }
 
@@ -60,6 +80,7 @@ export function StatusDashboard({
     })
 
     const result = await Promise.allSettled(pages.map((page) => fetchStatusPageStatus(page)))
+    let computedOverallIndicator: AtlassianIndicator = 'unknown'
 
     setStatusByPageId((previous) => {
       const next = { ...previous }
@@ -73,6 +94,7 @@ export function StatusDashboard({
           next[page.id] = {
             indicator: pageResult.value.indicator,
             description: pageResult.value.description,
+            degradedComponents: pageResult.value.degradedComponents,
             fetchedAt: pageResult.value.fetchedAt,
             lastSuccessfulAt: pageResult.value.lastSuccessfulAt,
             latencyMs: pageResult.value.latencyMs,
@@ -94,12 +116,18 @@ export function StatusDashboard({
         }
       })
 
+      computedOverallIndicator = pages.reduce<AtlassianIndicator>((current, page) => {
+        const nextIndicator = next[page.id]?.indicator ?? 'unknown'
+        return indicatorSeverity(nextIndicator) > indicatorSeverity(current) ? nextIndicator : current
+      }, 'unknown')
+
       return next
     })
 
     setIsPolling(false)
     onLastRefreshChange(new Date())
-  }, [onLastRefreshChange, pages])
+    onOverallIndicatorChange(computedOverallIndicator)
+  }, [onLastRefreshChange, onOverallIndicatorChange, pages])
 
   useEffect(() => {
     const kickoffId = window.setTimeout(() => {
@@ -182,9 +210,14 @@ export function StatusDashboard({
   const cards = useMemo(
     () =>
       pages.map((page) => (
-        <StatusCard key={page.id} page={page} status={statusByPageId[page.id] ?? getDefaultStatus()} />
+        <StatusCard
+          key={page.id}
+          page={page}
+          status={statusByPageId[page.id] ?? getDefaultStatus()}
+          onOpenSettings={() => navigate('/settings', { state: { editPageId: page.id } })}
+        />
       )),
-    [pages, statusByPageId],
+    [navigate, pages, statusByPageId],
   )
 
   return (

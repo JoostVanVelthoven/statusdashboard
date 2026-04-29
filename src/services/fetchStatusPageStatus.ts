@@ -2,6 +2,7 @@ import type {
   AtlassianSummaryPayload,
   AtlassianStatusPayload,
   AtlassianIndicator,
+  StatusPageComponentOption,
   StatusFetchResult,
   StoredStatusPage,
 } from '../types/status'
@@ -105,6 +106,66 @@ function mapPayloadToStatus(pageId: string, payload: AtlassianStatusPayload, lat
     pageId,
     indicator,
     description,
+    degradedComponents: [],
+    fetchedAt: timestamp,
+    lastSuccessfulAt: timestamp,
+    latencyMs,
+  }
+}
+
+function extractDegradedComponentsFromSummary(
+  payload: AtlassianSummaryPayload,
+  monitoredComponentIds: string[] | null,
+): StatusPageComponentOption[] {
+  if (!Array.isArray(payload.components)) {
+    return []
+  }
+
+  const targetIds = monitoredComponentIds ? new Set(monitoredComponentIds) : null
+
+  return payload.components
+    .filter((component) => component && component.group !== true && typeof component.id === 'string')
+    .filter((component) => (targetIds ? targetIds.has(component.id as string) : true))
+    .filter((component) => {
+      const indicator = mapComponentStatusToIndicator(
+        typeof component.status === 'string' ? component.status : 'unknown',
+      )
+      return indicator !== 'none'
+    })
+    .map((component) => ({
+      id: component.id as string,
+      name: typeof component.name === 'string' ? component.name : 'Unnamed component',
+      status: typeof component.status === 'string' ? component.status : 'unknown',
+    }))
+}
+
+function mapSummaryToPageStatus(
+  pageId: string,
+  payload: AtlassianSummaryPayload,
+  latencyMs: number,
+): StatusFetchResult {
+  const timestamp = new Date().toISOString()
+  const degradedComponents = extractDegradedComponentsFromSummary(payload, null)
+  let indicator = normalizeIndicator(payload.status?.indicator)
+
+  if (indicator === 'unknown' && degradedComponents.length > 0) {
+    indicator = degradedComponents.reduce<AtlassianIndicator>((current, component) => {
+      const next = mapComponentStatusToIndicator(component.status)
+      return indicatorSeverity(next) > indicatorSeverity(current) ? next : current
+    }, 'none')
+  }
+
+  const description =
+    payload.status?.description?.trim() ||
+    (degradedComponents.length > 0
+      ? `${degradedComponents.length} components degraded`
+      : 'Unknown status description')
+
+  return {
+    pageId,
+    indicator,
+    description,
+    degradedComponents,
     fetchedAt: timestamp,
     lastSuccessfulAt: timestamp,
     latencyMs,
@@ -124,6 +185,7 @@ function mapMonitoredComponentsToStatus(
       pageId,
       indicator: 'unknown',
       description: 'No components found in summary.json.',
+      degradedComponents: [],
       fetchedAt: timestamp,
       lastSuccessfulAt: timestamp,
       latencyMs,
@@ -145,6 +207,7 @@ function mapMonitoredComponentsToStatus(
       pageId,
       indicator: 'unknown',
       description: 'No selected components found in summary.json.',
+      degradedComponents: [],
       fetchedAt: timestamp,
       lastSuccessfulAt: timestamp,
       latencyMs,
@@ -170,21 +233,18 @@ function mapMonitoredComponentsToStatus(
     overall = 'unknown'
   }
 
-  const affected = selected.filter(
-    (component) =>
-      mapComponentStatusToIndicator(typeof component.status === 'string' ? component.status : 'unknown') !==
-      'none',
-  )
+  const degradedComponents = extractDegradedComponentsFromSummary(payload, monitoredComponentIds)
 
   const description =
-    affected.length === 0
+    degradedComponents.length === 0
       ? `${selected.length} selected components operational`
-      : `${affected.length}/${selected.length} selected components degraded`
+      : `${degradedComponents.length}/${selected.length} selected components degraded`
 
   return {
     pageId,
     indicator: overall,
     description,
+    degradedComponents,
     fetchedAt: timestamp,
     lastSuccessfulAt: timestamp,
     latencyMs,
@@ -194,32 +254,25 @@ function mapMonitoredComponentsToStatus(
 export async function fetchStatusPageStatus(page: StoredStatusPage): Promise<StatusFetchResult> {
   const startedAt = Date.now()
 
-  if (page.summaryApiUrl && page.monitoredComponentIds.length > 0) {
-    const summaryPayload = await fetchJson<AtlassianSummaryPayload>(page.summaryApiUrl)
+  if (page.summaryApiUrl) {
+    try {
+      const summaryPayload = await fetchJson<AtlassianSummaryPayload>(page.summaryApiUrl)
 
-    return mapMonitoredComponentsToStatus(
-      page.id,
-      summaryPayload,
-      page.monitoredComponentIds,
-      Date.now() - startedAt,
-    )
-  }
-
-  try {
-    const statusPayload = await fetchJson<AtlassianStatusPayload>(page.statusApiUrl)
-
-    return mapPayloadToStatus(page.id, statusPayload, Date.now() - startedAt)
-  } catch (primaryError) {
-    if (page.summaryApiUrl) {
-      try {
-        const summaryPayload = await fetchJson<AtlassianStatusPayload>(page.summaryApiUrl)
-
-        return mapPayloadToStatus(page.id, summaryPayload, Date.now() - startedAt)
-      } catch {
-        throw primaryError
+      if (page.monitoredComponentIds.length > 0) {
+        return mapMonitoredComponentsToStatus(
+          page.id,
+          summaryPayload,
+          page.monitoredComponentIds,
+          Date.now() - startedAt,
+        )
       }
-    }
 
-    throw primaryError
+      return mapSummaryToPageStatus(page.id, summaryPayload, Date.now() - startedAt)
+    } catch {
+      // Fall back to status endpoint when summary endpoint is unavailable.
+    }
   }
+
+  const statusPayload = await fetchJson<AtlassianStatusPayload>(page.statusApiUrl)
+  return mapPayloadToStatus(page.id, statusPayload, Date.now() - startedAt)
 }

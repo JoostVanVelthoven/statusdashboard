@@ -62,6 +62,7 @@ export interface StatusFetchResult {
   pageId: string
   indicator: AtlassianIndicator
   description: string
+  degradedComponents: StatusPageComponentOption[]
   fetchedAt: string
   lastSuccessfulAt: string
   latencyMs: number
@@ -70,6 +71,7 @@ export interface StatusFetchResult {
 export interface RuntimeStatus {
   indicator: AtlassianIndicator
   description: string
+  degradedComponents: StatusPageComponentOption[]
   fetchedAt: string | null
   lastSuccessfulAt: string | null
   latencyMs: number | null

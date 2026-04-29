@@ -1,10 +1,50 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, Route, Routes, useLocation } from 'react-router-dom'
 import { StatusDashboard } from './components/StatusDashboard'
 import { loadStatusPages, saveStatusPages } from './services/localStorageStatusPages'
 import { JsonImportExportPage } from './pages/JsonImportExportPage'
 import { SettingsPage } from './pages/SettingsPage'
-import type { StoredStatusPage } from './types/status'
+import type { AtlassianIndicator, StoredStatusPage } from './types/status'
+
+type MonitorChromeState = {
+  color: string
+  title: string
+}
+
+function getMonitorChromeState(indicator: AtlassianIndicator): MonitorChromeState {
+  switch (indicator) {
+    case 'none':
+      return {
+        color: '#22c55e',
+        title: 'Sentinel NOC // Green Orbit - All systems nominal',
+      }
+    case 'minor':
+    case 'major':
+      return {
+        color: '#f59e0b',
+        title: 'Sentinel NOC // Amber Pulse - Service degradation',
+      }
+    case 'critical':
+      return {
+        color: '#ef4444',
+        title: 'Sentinel NOC // Red Alert - Major outage',
+      }
+    default:
+      return {
+        color: '#94a3b8',
+        title: 'Sentinel NOC // Gray Horizon - Status unknown',
+      }
+  }
+}
+
+function buildFaviconDataUrl(color: string): string {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <rect width="64" height="64" rx="14" fill="#0b1220"/>
+  <circle cx="32" cy="32" r="20" fill="${color}" />
+  <circle cx="32" cy="32" r="10" fill="#0b1220" />
+</svg>`
+  return `data:image/svg+xml,${encodeURIComponent(svg)}`
+}
 
 function formatRelativeRefresh(lastRefreshAt: Date | null): string {
   if (!lastRefreshAt) {
@@ -47,6 +87,7 @@ export default function App() {
   const [pages, setPages] = useState<StoredStatusPage[]>(() => loadStatusPages())
   const [lastRefreshAt, setLastRefreshAt] = useState<Date | null>(null)
   const [refreshToken, setRefreshToken] = useState(0)
+  const [overallIndicator, setOverallIndicator] = useState<AtlassianIndicator>('unknown')
   const location = useLocation()
 
   const isDashboardRoute = location.pathname === '/'
@@ -59,6 +100,23 @@ export default function App() {
     setPages(nextPages)
     saveStatusPages(nextPages)
   }
+
+  useEffect(() => {
+    const state = getMonitorChromeState(overallIndicator)
+    document.title = state.title
+
+    const faviconHref = buildFaviconDataUrl(state.color)
+    let faviconLink = document.querySelector<HTMLLinkElement>('link[rel=\"icon\"]')
+
+    if (!faviconLink) {
+      faviconLink = document.createElement('link')
+      faviconLink.rel = 'icon'
+      document.head.appendChild(faviconLink)
+    }
+
+    faviconLink.type = 'image/svg+xml'
+    faviconLink.href = faviconHref
+  }, [overallIndicator])
 
   return (
     <div className="min-h-screen bg-[#0e1511] text-slate-100">
@@ -99,6 +157,7 @@ export default function App() {
               refreshToken={refreshToken}
               onPagesChange={handlePagesChange}
               onLastRefreshChange={setLastRefreshAt}
+              onOverallIndicatorChange={setOverallIndicator}
             />
           }
         />

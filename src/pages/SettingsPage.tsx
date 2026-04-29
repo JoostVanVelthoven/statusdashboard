@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Link, useLocation } from 'react-router-dom'
 import { StatusPageForm } from '../components/StatusPageForm'
 import { detectStatusPageProvider } from '../services/detectStatusPageProvider'
 import { saveStatusPages } from '../services/localStorageStatusPages'
@@ -13,6 +13,10 @@ type SettingsPageProps = {
 type FormValues = {
   name: string
   url: string
+}
+
+type SettingsLocationState = {
+  editPageId?: string
 }
 
 function getComponentTone(status: string): string {
@@ -32,6 +36,7 @@ function getComponentTone(status: string): string {
 }
 
 export function SettingsPage({ pages, onPagesChange }: SettingsPageProps) {
+  const location = useLocation()
   const [editingPageId, setEditingPageId] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
@@ -163,7 +168,7 @@ export function SettingsPage({ pages, onPagesChange }: SettingsPageProps) {
     }
   }
 
-  const handleEdit = async (page: StoredStatusPage) => {
+  const handleEdit = useCallback(async (page: StoredStatusPage) => {
     setEditingPageId(page.id)
     setFormError(null)
     setComponentsError(null)
@@ -192,7 +197,7 @@ export function SettingsPage({ pages, onPagesChange }: SettingsPageProps) {
     } finally {
       setIsLoadingComponents(false)
     }
-  }
+  }, [])
 
   const toggleComponent = (componentId: string) => {
     setSelectedComponentIds((previous) =>
@@ -201,6 +206,23 @@ export function SettingsPage({ pages, onPagesChange }: SettingsPageProps) {
         : [...previous, componentId],
     )
   }
+
+  useEffect(() => {
+    const routeState = location.state as SettingsLocationState | null
+    const routeEditPageId = routeState?.editPageId
+
+    if (!routeEditPageId || editingPageId === routeEditPageId) {
+      return
+    }
+
+    const pageToEdit = pages.find((page) => page.id === routeEditPageId)
+
+    if (!pageToEdit) {
+      return
+    }
+
+    void handleEdit(pageToEdit)
+  }, [editingPageId, handleEdit, location.state, pages])
 
   return (
     <main className="mx-auto w-full max-w-[1720px] p-8 md:p-10">
