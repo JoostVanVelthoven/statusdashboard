@@ -11,28 +11,33 @@ type MonitorChromeState = {
   title: string
 }
 
+const DEFAULT_CHROME_STATE: MonitorChromeState = {
+  color: '#38bdf8',
+  title: '[IDLE] Sentinel NOC // Command Deck',
+}
+
 function getMonitorChromeState(indicator: AtlassianIndicator): MonitorChromeState {
   switch (indicator) {
     case 'none':
       return {
         color: '#22c55e',
-        title: 'Sentinel NOC // Green Orbit - All systems nominal',
+        title: '[GREEN] Sentinel NOC // Green Orbit - All systems nominal',
       }
     case 'minor':
     case 'major':
       return {
         color: '#f59e0b',
-        title: 'Sentinel NOC // Amber Pulse - Service degradation',
+        title: '[AMBER] Sentinel NOC // Amber Pulse - Service degradation',
       }
     case 'critical':
       return {
         color: '#ef4444',
-        title: 'Sentinel NOC // Red Alert - Major outage',
+        title: '[RED] Sentinel NOC // Red Alert - Major outage',
       }
     default:
       return {
         color: '#94a3b8',
-        title: 'Sentinel NOC // Gray Horizon - Status unknown',
+        title: '[GRAY] Sentinel NOC // Gray Horizon - Status unknown',
       }
   }
 }
@@ -102,21 +107,32 @@ export default function App() {
   }
 
   useEffect(() => {
-    const state = getMonitorChromeState(overallIndicator)
+    if (pages.length > 0 && overallIndicator === 'unknown') {
+      setOverallIndicator('none')
+    }
+  }, [overallIndicator, pages.length])
+
+  useEffect(() => {
+    const state = pages.length === 0 ? DEFAULT_CHROME_STATE : getMonitorChromeState(overallIndicator)
     document.title = state.title
+    ;(window as Window & { title?: string }).title = state.title
 
     const faviconHref = buildFaviconDataUrl(state.color)
-    let faviconLink = document.querySelector<HTMLLinkElement>('link[rel=\"icon\"]')
+    const relValues = ['icon', 'shortcut icon']
 
-    if (!faviconLink) {
-      faviconLink = document.createElement('link')
-      faviconLink.rel = 'icon'
-      document.head.appendChild(faviconLink)
+    for (const rel of relValues) {
+      let faviconLink = document.querySelector<HTMLLinkElement>(`link[rel=\"${rel}\"]`)
+
+      if (!faviconLink) {
+        faviconLink = document.createElement('link')
+        faviconLink.rel = rel
+        document.head.appendChild(faviconLink)
+      }
+
+      faviconLink.type = 'image/svg+xml'
+      faviconLink.href = faviconHref
     }
-
-    faviconLink.type = 'image/svg+xml'
-    faviconLink.href = faviconHref
-  }, [overallIndicator])
+  }, [overallIndicator, pages.length])
 
   return (
     <div className="min-h-screen bg-[#0e1511] text-slate-100">

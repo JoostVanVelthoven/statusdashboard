@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { detectStatusPageProvider } from '../services/detectStatusPageProvider'
 import { fetchStatusPageStatus } from '../services/fetchStatusPageStatus'
 import { saveStatusPages } from '../services/localStorageStatusPages'
+import { createId } from '../utils/createId'
 import { StatusCard } from './StatusCard'
 import type { AtlassianIndicator, RuntimeStatus, StoredStatusPage } from '../types/status'
 
@@ -177,7 +178,7 @@ export function StatusDashboard({
         const nextPages: StoredStatusPage[] = [
           ...pages,
           {
-            id: crypto.randomUUID(),
+            id: createId(),
             name: detection.name?.trim() || hostname,
             url: detection.baseUrl,
             provider: detection.provider,

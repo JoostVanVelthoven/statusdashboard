@@ -3,6 +3,7 @@ import { Link, useLocation } from 'react-router-dom'
 import { StatusPageForm } from '../components/StatusPageForm'
 import { detectStatusPageProvider } from '../services/detectStatusPageProvider'
 import { saveStatusPages } from '../services/localStorageStatusPages'
+import { createId } from '../utils/createId'
 import type { StatusPageComponentOption, StoredStatusPage } from '../types/status'
 
 type SettingsPageProps = {
@@ -80,7 +81,7 @@ export function SettingsPage({ pages, onPagesChange }: SettingsPageProps) {
       }
 
       const nextPage: StoredStatusPage = {
-        id: editingPage?.id ?? crypto.randomUUID(),
+        id: editingPage?.id ?? createId(),
         name: nextName,
         url: detection.baseUrl,
         provider: detection.provider,
@@ -148,7 +149,7 @@ export function SettingsPage({ pages, onPagesChange }: SettingsPageProps) {
       const nextPages: StoredStatusPage[] = [
         ...pages,
         {
-          id: crypto.randomUUID(),
+          id: createId(),
           name: detection.name?.trim() || hostname,
           url: detection.baseUrl,
           provider: detection.provider,
