@@ -47,6 +47,7 @@ export function SettingsPage({ pages, onPagesChange }: SettingsPageProps) {
   const [componentsError, setComponentsError] = useState<string | null>(null)
   const [availableComponents, setAvailableComponents] = useState<StatusPageComponentOption[]>([])
   const [selectedComponentIds, setSelectedComponentIds] = useState<string[]>([])
+  const [componentSearch, setComponentSearch] = useState('')
   const editorDialogRef = useRef<HTMLDialogElement | null>(null)
 
   const editingPage = useMemo(
@@ -67,6 +68,27 @@ export function SettingsPage({ pages, onPagesChange }: SettingsPageProps) {
     onPagesChange(nextPages)
   }
 
+  const normalizedComponentSearch = componentSearch.trim().toLowerCase()
+  const filteredComponents = useMemo(() => {
+    if (!normalizedComponentSearch) {
+      return availableComponents
+    }
+
+    return availableComponents.filter((component) => {
+      const nameMatch = component.name.toLowerCase().includes(normalizedComponentSearch)
+      const statusMatch = component.status.toLowerCase().includes(normalizedComponentSearch)
+      return nameMatch || statusMatch
+    })
+  }, [availableComponents, normalizedComponentSearch])
+
+  const allFilteredSelected =
+    filteredComponents.length > 0 &&
+    filteredComponents.every((component) => selectedComponentIds.includes(component.id))
+
+  const hasFilteredSelection = filteredComponents.some((component) =>
+    selectedComponentIds.includes(component.id),
+  )
+
   const resetEditorState = useCallback(() => {
     setEditingPageId(null)
     setFormError(null)
@@ -74,6 +96,7 @@ export function SettingsPage({ pages, onPagesChange }: SettingsPageProps) {
     setComponentsError(null)
     setAvailableComponents([])
     setSelectedComponentIds([])
+    setComponentSearch('')
   }, [])
 
   const closeEditor = useCallback(() => {
@@ -244,6 +267,32 @@ export function SettingsPage({ pages, onPagesChange }: SettingsPageProps) {
         ? previous.filter((id) => id !== componentId)
         : [...previous, componentId],
     )
+  }
+
+  const selectAllFilteredComponents = () => {
+    if (filteredComponents.length === 0) {
+      return
+    }
+
+    setSelectedComponentIds((previous) => {
+      const next = new Set(previous)
+
+      for (const component of filteredComponents) {
+        next.add(component.id)
+      }
+
+      return Array.from(next)
+    })
+  }
+
+  const deselectAllFilteredComponents = () => {
+    if (filteredComponents.length === 0) {
+      return
+    }
+
+    const filteredIds = new Set(filteredComponents.map((component) => component.id))
+
+    setSelectedComponentIds((previous) => previous.filter((componentId) => !filteredIds.has(componentId)))
   }
 
   useEffect(() => {
@@ -567,26 +616,64 @@ export function SettingsPage({ pages, onPagesChange }: SettingsPageProps) {
               <p className="mt-3 text-sm text-slate-400">No components found in summary.json for this page.</p>
             ) : null}
             {editingPage && availableComponents.length > 0 ? (
-              <div className="mt-4 max-h-56 space-y-2 overflow-auto pr-1 sm:max-h-72">
-                {availableComponents.map((component) => (
-                  <label
-                    key={component.id}
-                    className="flex items-center justify-between rounded-lg border border-slate-700 bg-[#0f1714] px-3 py-2 text-sm text-slate-200"
+              <div className="mt-4">
+                <div className="flex flex-wrap items-center gap-2">
+                  <input
+                    type="search"
+                    value={componentSearch}
+                    onChange={(event) => setComponentSearch(event.target.value)}
+                    placeholder="Search components..."
+                    className="min-w-[220px] flex-1 rounded-lg border border-slate-600/80 bg-[#0b1210] px-3 py-2 text-sm text-slate-100 outline-none transition focus:border-emerald-400"
+                  />
+                  <button
+                    type="button"
+                    onClick={selectAllFilteredComponents}
+                    disabled={filteredComponents.length === 0 || allFilteredSelected}
+                    className="rounded-lg border border-emerald-500/50 bg-emerald-500/10 px-3 py-2 text-xs font-semibold uppercase tracking-[0.08em] text-emerald-300 transition hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    <span className="flex items-center gap-3">
-                      <input
-                        type="checkbox"
-                        checked={selectedComponentIds.includes(component.id)}
-                        onChange={() => toggleComponent(component.id)}
-                        className="h-4 w-4 rounded border-slate-500 bg-slate-900 text-emerald-400"
-                      />
-                      <span>{component.name}</span>
-                    </span>
-                    <span className={`rounded px-2 py-1 text-xs font-semibold ${getComponentTone(component.status)}`}>
-                      {component.status}
-                    </span>
-                  </label>
-                ))}
+                    Select all
+                  </button>
+                  <button
+                    type="button"
+                    onClick={deselectAllFilteredComponents}
+                    disabled={filteredComponents.length === 0 || !hasFilteredSelection}
+                    className="rounded-lg border border-slate-600 px-3 py-2 text-xs font-semibold uppercase tracking-[0.08em] text-slate-300 transition hover:border-slate-400 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    Deselect all
+                  </button>
+                </div>
+
+                <p className="mt-2 text-xs text-slate-400">
+                  Showing {filteredComponents.length} of {availableComponents.length} components.
+                </p>
+
+                {filteredComponents.length === 0 ? (
+                  <p className="mt-3 rounded-lg border border-slate-700 bg-[#0b1210] px-3 py-2 text-sm text-slate-400">
+                    No components match your search.
+                  </p>
+                ) : null}
+
+                <div className="mt-3 max-h-56 space-y-2 overflow-auto pr-1 sm:max-h-72">
+                  {filteredComponents.map((component) => (
+                    <label
+                      key={component.id}
+                      className="flex items-center justify-between rounded-lg border border-slate-700 bg-[#0f1714] px-3 py-2 text-sm text-slate-200"
+                    >
+                      <span className="flex items-center gap-3">
+                        <input
+                          type="checkbox"
+                          checked={selectedComponentIds.includes(component.id)}
+                          onChange={() => toggleComponent(component.id)}
+                          className="h-4 w-4 rounded border-slate-500 bg-slate-900 text-emerald-400"
+                        />
+                        <span>{component.name}</span>
+                      </span>
+                      <span className={`rounded px-2 py-1 text-xs font-semibold ${getComponentTone(component.status)}`}>
+                        {component.status}
+                      </span>
+                    </label>
+                  ))}
+                </div>
               </div>
             ) : null}
             {editingPage && availableComponents.length > 0 ? (
