@@ -62,6 +62,41 @@ function formatComponentStatus(status: string): string {
   return status.replace(/_/g, ' ')
 }
 
+function formatWindowDateTime(isoTimestamp: string | null): string {
+  if (!isoTimestamp) {
+    return 'TBD'
+  }
+
+  const parsed = new Date(isoTimestamp)
+
+  if (Number.isNaN(parsed.valueOf())) {
+    return 'Unknown'
+  }
+
+  return parsed.toLocaleString('en-GB', {
+    day: '2-digit',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
+
+function formatMaintenanceWindow(start: string | null, end: string | null): string {
+  if (!start && !end) {
+    return 'Window TBD'
+  }
+
+  if (start && end) {
+    return `${formatWindowDateTime(start)} - ${formatWindowDateTime(end)}`
+  }
+
+  if (start) {
+    return `Starts ${formatWindowDateTime(start)}`
+  }
+
+  return `Until ${formatWindowDateTime(end)}`
+}
+
 type StatusCardProps = {
   page: StoredStatusPage
   status: RuntimeStatus
@@ -126,6 +161,42 @@ export function StatusCard({ page, status, onOpenSettings }: StatusCardProps) {
         <p className="mt-2 text-xs text-slate-400">
           Relevant components: {page.monitoredComponentIds.length > 0 ? page.monitoredComponentIds.length : 'all'}
         </p>
+        {status.plannedMaintenances.length > 0 ? (
+          <div className="mt-3 rounded-lg border border-sky-500/35 bg-sky-500/10 p-3">
+            <div className="flex items-center justify-between gap-2">
+              <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.08em] text-sky-100">
+                <svg
+                  viewBox="0 0 24 24"
+                  aria-hidden="true"
+                  className="h-4 w-4 fill-none stroke-current stroke-[1.8]"
+                >
+                  <rect x="3" y="5" width="18" height="16" rx="2" />
+                  <path d="M16 3v4M8 3v4M3 10h18" />
+                </svg>
+                Planned Maintenance
+              </p>
+              <span className="rounded-full bg-sky-500/30 px-2 py-0.5 text-[11px] font-semibold text-sky-100">
+                {status.plannedMaintenances.length}
+              </span>
+            </div>
+            <ul className="mt-2 space-y-2 text-xs text-sky-50">
+              {status.plannedMaintenances.map((maintenance) => (
+                <li key={maintenance.id} className="rounded-md border border-sky-400/20 bg-[#10221b]/40 p-2">
+                  <p className="font-semibold text-sky-100">{maintenance.name}</p>
+                  <p className="mt-1 text-sky-100/90">
+                    {formatComponentStatus(maintenance.status)} •{' '}
+                    {formatMaintenanceWindow(maintenance.scheduledFor, maintenance.scheduledUntil)}
+                  </p>
+                  {maintenance.impactedComponents.length > 0 ? (
+                    <p className="mt-1 text-sky-200/85">
+                      Components: {maintenance.impactedComponents.map((component) => component.name).join(', ')}
+                    </p>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
         {status.degradedComponents.length > 0 ? (
           <div className="mt-3 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3">
             <p className="text-xs font-semibold uppercase tracking-[0.08em] text-amber-200">

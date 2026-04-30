@@ -31,6 +31,16 @@ export interface AtlassianComponent {
   group?: boolean
 }
 
+export interface AtlassianScheduledMaintenance {
+  id?: string
+  name?: string
+  status?: string
+  impact?: string
+  scheduled_for?: string
+  scheduled_until?: string
+  components?: AtlassianComponent[]
+}
+
 export interface AtlassianStatusPayload {
   page?: AtlassianPageInfo
   status?: {
@@ -43,10 +53,24 @@ export interface AtlassianSummaryPayload extends AtlassianStatusPayload {
   components?: AtlassianComponent[]
 }
 
+export interface AtlassianScheduledMaintenancesPayload {
+  page?: AtlassianPageInfo
+  scheduled_maintenances?: AtlassianScheduledMaintenance[]
+}
+
 export interface StatusPageComponentOption {
   id: string
   name: string
   status: string
+}
+
+export interface PlannedMaintenance {
+  id: string
+  name: string
+  status: string
+  scheduledFor: string | null
+  scheduledUntil: string | null
+  impactedComponents: StatusPageComponentOption[]
 }
 
 export interface ProviderDetectionResult {
@@ -63,6 +87,7 @@ export interface StatusFetchResult {
   indicator: AtlassianIndicator
   description: string
   degradedComponents: StatusPageComponentOption[]
+  plannedMaintenances: PlannedMaintenance[]
   fetchedAt: string
   lastSuccessfulAt: string
   latencyMs: number
@@ -72,6 +97,7 @@ export interface RuntimeStatus {
   indicator: AtlassianIndicator
   description: string
   degradedComponents: StatusPageComponentOption[]
+  plannedMaintenances: PlannedMaintenance[]
   fetchedAt: string | null
   lastSuccessfulAt: string | null
   latencyMs: number | null

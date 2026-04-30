@@ -1,7 +1,9 @@
 import type {
+  AtlassianScheduledMaintenancesPayload,
   AtlassianSummaryPayload,
   AtlassianStatusPayload,
   AtlassianIndicator,
+  PlannedMaintenance,
   StatusPageComponentOption,
   StatusFetchResult,
   StoredStatusPage,
@@ -97,7 +99,12 @@ function indicatorSeverity(indicator: AtlassianIndicator): number {
   }
 }
 
-function mapPayloadToStatus(pageId: string, payload: AtlassianStatusPayload, latencyMs: number): StatusFetchResult {
+function mapPayloadToStatus(
+  pageId: string,
+  payload: AtlassianStatusPayload,
+  latencyMs: number,
+  plannedMaintenances: PlannedMaintenance[],
+): StatusFetchResult {
   const indicator = normalizeIndicator(payload.status?.indicator)
   const description = payload.status?.description?.trim() || 'Unknown status description'
   const timestamp = new Date().toISOString()
@@ -107,6 +114,7 @@ function mapPayloadToStatus(pageId: string, payload: AtlassianStatusPayload, lat
     indicator,
     description,
     degradedComponents: [],
+    plannedMaintenances,
     fetchedAt: timestamp,
     lastSuccessfulAt: timestamp,
     latencyMs,
@@ -139,9 +147,67 @@ function extractDegradedComponentsFromSummary(
     }))
 }
 
+function normalizeMaintenanceStatus(status: unknown): string {
+  return typeof status === 'string' ? status.toLowerCase() : 'unknown'
+}
+
+function isUpcomingOrActiveMaintenanceStatus(status: string): boolean {
+  return status === 'scheduled' || status === 'in_progress' || status === 'verifying'
+}
+
+function extractPlannedMaintenancesFromPayload(
+  payload: AtlassianScheduledMaintenancesPayload | null,
+  monitoredComponentIds: string[] | null,
+): PlannedMaintenance[] {
+  if (!payload || !Array.isArray(payload.scheduled_maintenances)) {
+    return []
+  }
+
+  const targetIds = monitoredComponentIds ? new Set(monitoredComponentIds) : null
+
+  return payload.scheduled_maintenances
+    .map((maintenance, index) => {
+      const status = normalizeMaintenanceStatus(maintenance?.status)
+      const impactedComponents = Array.isArray(maintenance?.components)
+        ? maintenance.components
+            .filter(
+              (component) =>
+                component &&
+                component.group !== true &&
+                typeof component.id === 'string' &&
+                typeof component.name === 'string',
+            )
+            .map((component) => ({
+              id: component.id as string,
+              name: component.name as string,
+              status: typeof component.status === 'string' ? component.status : 'unknown',
+            }))
+        : []
+
+      return {
+        id: typeof maintenance?.id === 'string' ? maintenance.id : `maintenance-${index}`,
+        name:
+          typeof maintenance?.name === 'string' && maintenance.name.trim()
+            ? maintenance.name.trim()
+            : 'Scheduled maintenance',
+        status,
+        scheduledFor: typeof maintenance?.scheduled_for === 'string' ? maintenance.scheduled_for : null,
+        scheduledUntil: typeof maintenance?.scheduled_until === 'string' ? maintenance.scheduled_until : null,
+        impactedComponents,
+      }
+    })
+    .filter((maintenance) => isUpcomingOrActiveMaintenanceStatus(maintenance.status))
+    .filter((maintenance) =>
+      targetIds
+        ? maintenance.impactedComponents.some((component) => targetIds.has(component.id))
+        : true,
+    )
+}
+
 function mapSummaryToPageStatus(
   pageId: string,
   payload: AtlassianSummaryPayload,
+  plannedMaintenances: PlannedMaintenance[],
   latencyMs: number,
 ): StatusFetchResult {
   const timestamp = new Date().toISOString()
@@ -166,6 +232,7 @@ function mapSummaryToPageStatus(
     indicator,
     description,
     degradedComponents,
+    plannedMaintenances,
     fetchedAt: timestamp,
     lastSuccessfulAt: timestamp,
     latencyMs,
@@ -176,6 +243,7 @@ function mapMonitoredComponentsToStatus(
   pageId: string,
   payload: AtlassianSummaryPayload,
   monitoredComponentIds: string[],
+  plannedMaintenances: PlannedMaintenance[],
   latencyMs: number,
 ): StatusFetchResult {
   const timestamp = new Date().toISOString()
@@ -186,6 +254,7 @@ function mapMonitoredComponentsToStatus(
       indicator: 'unknown',
       description: 'No components found in summary.json.',
       degradedComponents: [],
+      plannedMaintenances,
       fetchedAt: timestamp,
       lastSuccessfulAt: timestamp,
       latencyMs,
@@ -208,6 +277,7 @@ function mapMonitoredComponentsToStatus(
       indicator: 'unknown',
       description: 'No selected components found in summary.json.',
       degradedComponents: [],
+      plannedMaintenances,
       fetchedAt: timestamp,
       lastSuccessfulAt: timestamp,
       latencyMs,
@@ -245,6 +315,7 @@ function mapMonitoredComponentsToStatus(
     indicator: overall,
     description,
     degradedComponents,
+    plannedMaintenances,
     fetchedAt: timestamp,
     lastSuccessfulAt: timestamp,
     latencyMs,
@@ -253,26 +324,53 @@ function mapMonitoredComponentsToStatus(
 
 export async function fetchStatusPageStatus(page: StoredStatusPage): Promise<StatusFetchResult> {
   const startedAt = Date.now()
+  const scheduledMaintenancesApiUrl = `${page.url}/api/v2/scheduled-maintenances.json`
+  const monitoredIds = page.monitoredComponentIds.length > 0 ? page.monitoredComponentIds : null
+  let plannedMaintenances: PlannedMaintenance[] = []
+  let hasScheduledMaintenanceAttempt = false
 
   if (page.summaryApiUrl) {
-    try {
-      const summaryPayload = await fetchJson<AtlassianSummaryPayload>(page.summaryApiUrl)
+    const [summaryResult, scheduledMaintenancesResult] = await Promise.allSettled([
+      fetchJson<AtlassianSummaryPayload>(page.summaryApiUrl),
+      fetchJson<AtlassianScheduledMaintenancesPayload>(scheduledMaintenancesApiUrl),
+    ])
+    hasScheduledMaintenanceAttempt = true
+
+    if (scheduledMaintenancesResult.status === 'fulfilled') {
+      plannedMaintenances = extractPlannedMaintenancesFromPayload(
+        scheduledMaintenancesResult.value,
+        monitoredIds,
+      )
+    }
+
+    if (summaryResult.status === 'fulfilled') {
+      const summaryPayload = summaryResult.value
 
       if (page.monitoredComponentIds.length > 0) {
         return mapMonitoredComponentsToStatus(
           page.id,
           summaryPayload,
           page.monitoredComponentIds,
+          plannedMaintenances,
           Date.now() - startedAt,
         )
       }
 
-      return mapSummaryToPageStatus(page.id, summaryPayload, Date.now() - startedAt)
+      return mapSummaryToPageStatus(page.id, summaryPayload, plannedMaintenances, Date.now() - startedAt)
+    }
+  }
+
+  if (!hasScheduledMaintenanceAttempt) {
+    try {
+      const scheduledMaintenancesPayload = await fetchJson<AtlassianScheduledMaintenancesPayload>(
+        scheduledMaintenancesApiUrl,
+      )
+      plannedMaintenances = extractPlannedMaintenancesFromPayload(scheduledMaintenancesPayload, monitoredIds)
     } catch {
-      // Fall back to status endpoint when summary endpoint is unavailable.
+      plannedMaintenances = []
     }
   }
 
   const statusPayload = await fetchJson<AtlassianStatusPayload>(page.statusApiUrl)
-  return mapPayloadToStatus(page.id, statusPayload, Date.now() - startedAt)
+  return mapPayloadToStatus(page.id, statusPayload, Date.now() - startedAt, plannedMaintenances)
 }

@@ -49,11 +49,19 @@ describe('fetchStatusPageStatus (Atlassian)', () => {
   it('returns page-level status from status.json when no component selection is set', async () => {
     const page = createPage({ monitoredComponentIds: [], summaryApiUrl: undefined })
 
-    fetchMock.mockResolvedValue(
-      createJsonResponse({
-        status: { indicator: 'none', description: 'All Systems Operational' },
-      }),
-    )
+    fetchMock.mockImplementation(async (input: string) => {
+      if (input.endsWith('/api/v2/scheduled-maintenances.json')) {
+        return createJsonResponse({ scheduled_maintenances: [] })
+      }
+
+      if (input.endsWith('/api/v2/status.json')) {
+        return createJsonResponse({
+          status: { indicator: 'none', description: 'All Systems Operational' },
+        })
+      }
+
+      throw new Error(`Unexpected URL: ${input}`)
+    })
 
     const result = await fetchStatusPageStatus(page)
 
@@ -61,24 +69,52 @@ describe('fetchStatusPageStatus (Atlassian)', () => {
     expect(result.indicator).toBe('none')
     expect(result.description).toBe('All Systems Operational')
     expect(result.degradedComponents).toEqual([])
+    expect(result.plannedMaintenances).toEqual([])
     expect(result.lastSuccessfulAt).toBeTruthy()
     expect(result.latencyMs).toBeGreaterThanOrEqual(0)
-    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(fetchMock).toHaveBeenCalledTimes(2)
   })
 
   it('shows degraded components from summary.json when no explicit selection exists', async () => {
     const page = createPage({ monitoredComponentIds: [] })
 
-    fetchMock.mockResolvedValue(
-      createJsonResponse({
-        status: { indicator: 'minor', description: 'Minor Service Outage' },
-        components: [
-          { id: 'api', name: 'API', status: 'degraded_performance' },
-          { id: 'db', name: 'DB', status: 'operational' },
-          { id: 'cache', name: 'Cache', status: 'major_outage' },
-        ],
-      }),
-    )
+    fetchMock.mockImplementation(async (input: string) => {
+      if (input.endsWith('/api/v2/summary.json')) {
+        return createJsonResponse({
+          status: { indicator: 'minor', description: 'Minor Service Outage' },
+          components: [
+            { id: 'api', name: 'API', status: 'degraded_performance' },
+            { id: 'db', name: 'DB', status: 'operational' },
+            { id: 'cache', name: 'Cache', status: 'major_outage' },
+          ],
+        })
+      }
+
+      if (input.endsWith('/api/v2/scheduled-maintenances.json')) {
+        return createJsonResponse({
+          scheduled_maintenances: [
+            {
+              id: 'maintenance-1',
+              name: 'Nightly network change',
+              status: 'scheduled',
+              scheduled_for: '2026-05-02T18:00:00.000Z',
+              scheduled_until: '2026-05-02T19:00:00.000Z',
+              components: [{ id: 'api', name: 'API', status: 'under_maintenance' }],
+            },
+            {
+              id: 'maintenance-2',
+              name: 'Completed task',
+              status: 'completed',
+              scheduled_for: '2026-04-01T18:00:00.000Z',
+              scheduled_until: '2026-04-01T19:00:00.000Z',
+              components: [{ id: 'db', name: 'DB', status: 'operational' }],
+            },
+          ],
+        })
+      }
+
+      throw new Error(`Unexpected URL: ${input}`)
+    })
 
     const result = await fetchStatusPageStatus(page)
 
@@ -88,9 +124,23 @@ describe('fetchStatusPageStatus (Atlassian)', () => {
       { id: 'api', name: 'API', status: 'degraded_performance' },
       { id: 'cache', name: 'Cache', status: 'major_outage' },
     ])
-    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(result.plannedMaintenances).toEqual([
+      {
+        id: 'maintenance-1',
+        name: 'Nightly network change',
+        status: 'scheduled',
+        scheduledFor: '2026-05-02T18:00:00.000Z',
+        scheduledUntil: '2026-05-02T19:00:00.000Z',
+        impactedComponents: [{ id: 'api', name: 'API', status: 'under_maintenance' }],
+      },
+    ])
+    expect(fetchMock).toHaveBeenCalledTimes(2)
     expect(fetchMock).toHaveBeenCalledWith(
       'https://status.example.com/api/v2/summary.json',
+      expect.objectContaining({ method: 'GET' }),
+    )
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://status.example.com/api/v2/scheduled-maintenances.json',
       expect.objectContaining({ method: 'GET' }),
     )
   })
@@ -98,16 +148,39 @@ describe('fetchStatusPageStatus (Atlassian)', () => {
   it('derives status from selected summary components only', async () => {
     const page = createPage({ monitoredComponentIds: ['api', 'db'] })
 
-    fetchMock.mockResolvedValue(
-      createJsonResponse({
-        status: { indicator: 'none', description: 'All Systems Operational' },
-        components: [
-          { id: 'api', name: 'API', status: 'major_outage' },
-          { id: 'db', name: 'DB', status: 'operational' },
-          { id: 'cdn', name: 'CDN', status: 'major_outage' },
-        ],
-      }),
-    )
+    fetchMock.mockImplementation(async (input: string) => {
+      if (input.endsWith('/api/v2/summary.json')) {
+        return createJsonResponse({
+          status: { indicator: 'none', description: 'All Systems Operational' },
+          components: [
+            { id: 'api', name: 'API', status: 'major_outage' },
+            { id: 'db', name: 'DB', status: 'operational' },
+            { id: 'cdn', name: 'CDN', status: 'major_outage' },
+          ],
+        })
+      }
+
+      if (input.endsWith('/api/v2/scheduled-maintenances.json')) {
+        return createJsonResponse({
+          scheduled_maintenances: [
+            {
+              id: 'maintenance-api',
+              name: 'API maintenance',
+              status: 'scheduled',
+              components: [{ id: 'api', name: 'API', status: 'under_maintenance' }],
+            },
+            {
+              id: 'maintenance-cdn',
+              name: 'CDN maintenance',
+              status: 'scheduled',
+              components: [{ id: 'cdn', name: 'CDN', status: 'under_maintenance' }],
+            },
+          ],
+        })
+      }
+
+      throw new Error(`Unexpected URL: ${input}`)
+    })
 
     const result = await fetchStatusPageStatus(page)
 
@@ -116,7 +189,17 @@ describe('fetchStatusPageStatus (Atlassian)', () => {
     expect(result.degradedComponents).toEqual([
       { id: 'api', name: 'API', status: 'major_outage' },
     ])
-    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(result.plannedMaintenances).toEqual([
+      {
+        id: 'maintenance-api',
+        name: 'API maintenance',
+        status: 'scheduled',
+        scheduledFor: null,
+        scheduledUntil: null,
+        impactedComponents: [{ id: 'api', name: 'API', status: 'under_maintenance' }],
+      },
+    ])
+    expect(fetchMock).toHaveBeenCalledTimes(2)
     expect(fetchMock).toHaveBeenCalledWith(
       'https://status.example.com/api/v2/summary.json',
       expect.objectContaining({ method: 'GET' }),
@@ -126,18 +209,45 @@ describe('fetchStatusPageStatus (Atlassian)', () => {
   it('returns unknown when selected component IDs are missing in summary.json', async () => {
     const page = createPage({ monitoredComponentIds: ['worker'] })
 
-    fetchMock.mockResolvedValue(
-      createJsonResponse({
-        status: { indicator: 'none', description: 'All Systems Operational' },
-        components: [{ id: 'api', name: 'API', status: 'operational' }],
-      }),
-    )
+    fetchMock.mockImplementation(async (input: string) => {
+      if (input.endsWith('/api/v2/summary.json')) {
+        return createJsonResponse({
+          status: { indicator: 'none', description: 'All Systems Operational' },
+          components: [{ id: 'api', name: 'API', status: 'operational' }],
+        })
+      }
+
+      if (input.endsWith('/api/v2/scheduled-maintenances.json')) {
+        return createJsonResponse({
+          scheduled_maintenances: [
+            {
+              id: 'worker-upgrade',
+              name: 'Worker upgrade',
+              status: 'scheduled',
+              components: [{ id: 'worker', name: 'Worker', status: 'under_maintenance' }],
+            },
+          ],
+        })
+      }
+
+      throw new Error(`Unexpected URL: ${input}`)
+    })
 
     const result = await fetchStatusPageStatus(page)
 
     expect(result.indicator).toBe('unknown')
     expect(result.description).toBe('No selected components found in summary.json.')
     expect(result.degradedComponents).toEqual([])
+    expect(result.plannedMaintenances).toEqual([
+      {
+        id: 'worker-upgrade',
+        name: 'Worker upgrade',
+        status: 'scheduled',
+        scheduledFor: null,
+        scheduledUntil: null,
+        impactedComponents: [{ id: 'worker', name: 'Worker', status: 'under_maintenance' }],
+      },
+    ])
   })
 
   it('falls back to status.json when summary.json fails', async () => {
@@ -146,6 +256,19 @@ describe('fetchStatusPageStatus (Atlassian)', () => {
     fetchMock.mockImplementation(async (input: string) => {
       if (input.endsWith('/api/v2/summary.json')) {
         return createJsonResponse({ message: 'error' }, 500, 'Server Error')
+      }
+
+      if (input.endsWith('/api/v2/scheduled-maintenances.json')) {
+        return createJsonResponse({
+          scheduled_maintenances: [
+            {
+              id: 'minor-maintenance',
+              name: 'Minor maintenance',
+              status: 'scheduled',
+              components: [{ id: 'api', name: 'API', status: 'under_maintenance' }],
+            },
+          ],
+        })
       }
 
       if (input.endsWith('/api/v2/status.json')) {
@@ -162,20 +285,38 @@ describe('fetchStatusPageStatus (Atlassian)', () => {
     expect(result.indicator).toBe('minor')
     expect(result.description).toBe('Minor Service Outage')
     expect(result.degradedComponents).toEqual([])
-    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(result.plannedMaintenances).toEqual([
+      {
+        id: 'minor-maintenance',
+        name: 'Minor maintenance',
+        status: 'scheduled',
+        scheduledFor: null,
+        scheduledUntil: null,
+        impactedComponents: [{ id: 'api', name: 'API', status: 'under_maintenance' }],
+      },
+    ])
+    expect(fetchMock).toHaveBeenCalledTimes(3)
   })
 
   it('maps maintenance-like component states to warning severity', async () => {
     const page = createPage({ monitoredComponentIds: ['db', 'api'] })
 
-    fetchMock.mockResolvedValue(
-      createJsonResponse({
-        components: [
-          { id: 'db', name: 'DB', status: 'under_maintenance' },
-          { id: 'api', name: 'API', status: 'operational' },
-        ],
-      }),
-    )
+    fetchMock.mockImplementation(async (input: string) => {
+      if (input.endsWith('/api/v2/summary.json')) {
+        return createJsonResponse({
+          components: [
+            { id: 'db', name: 'DB', status: 'under_maintenance' },
+            { id: 'api', name: 'API', status: 'operational' },
+          ],
+        })
+      }
+
+      if (input.endsWith('/api/v2/scheduled-maintenances.json')) {
+        return createJsonResponse({ scheduled_maintenances: [] })
+      }
+
+      throw new Error(`Unexpected URL: ${input}`)
+    })
 
     const result = await fetchStatusPageStatus(page)
 
@@ -184,5 +325,6 @@ describe('fetchStatusPageStatus (Atlassian)', () => {
     expect(result.degradedComponents).toEqual([
       { id: 'db', name: 'DB', status: 'under_maintenance' },
     ])
+    expect(result.plannedMaintenances).toEqual([])
   })
 })
