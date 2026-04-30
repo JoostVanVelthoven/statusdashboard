@@ -9,6 +9,7 @@ import type {
   AtlassianIndicator,
   ProviderDetectionResult,
   RuntimeStatus,
+  StatusPageComponentOption,
   StoredStatusPage,
 } from '../types/status'
 
@@ -53,6 +54,26 @@ function getDefaultStatus(): RuntimeStatus {
   }
 }
 
+function getComponentTone(status: string): string {
+  switch (status) {
+    case 'operational':
+      return 'bg-emerald-500/20 text-emerald-300'
+    case 'degraded_performance':
+    case 'under_maintenance':
+      return 'bg-amber-500/20 text-amber-300'
+    case 'partial_outage':
+      return 'bg-orange-500/20 text-orange-300'
+    case 'major_outage':
+      return 'bg-rose-500/20 text-rose-300'
+    default:
+      return 'bg-slate-500/20 text-slate-300'
+  }
+}
+
+function formatComponentStatus(status: string): string {
+  return status.replace(/_/g, ' ')
+}
+
 export function StatusDashboard({
   pages,
   refreshToken,
@@ -70,8 +91,40 @@ export function StatusDashboard({
   const [isAddFormModalOpen, setIsAddFormModalOpen] = useState(false)
   const [addFormError, setAddFormError] = useState<string | null>(null)
   const [addPageDraft, setAddPageDraft] = useState<AddPageDraft | null>(null)
+  const [editingPageId, setEditingPageId] = useState<string | null>(null)
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false)
+  const [editFormError, setEditFormError] = useState<string | null>(null)
+  const [isEditingPage, setIsEditingPage] = useState(false)
+  const [isLoadingComponents, setIsLoadingComponents] = useState(false)
+  const [componentsError, setComponentsError] = useState<string | null>(null)
+  const [availableComponents, setAvailableComponents] = useState<StatusPageComponentOption[]>([])
+  const [selectedComponentIds, setSelectedComponentIds] = useState<string[]>([])
+  const [componentSearch, setComponentSearch] = useState('')
   const urlModalRef = useRef<HTMLDialogElement | null>(null)
   const addFormModalRef = useRef<HTMLDialogElement | null>(null)
+  const editModalRef = useRef<HTMLDialogElement | null>(null)
+  const editingPage = useMemo(
+    () => pages.find((page) => page.id === editingPageId) ?? null,
+    [editingPageId, pages],
+  )
+  const normalizedComponentSearch = componentSearch.trim().toLowerCase()
+  const filteredComponents = useMemo(() => {
+    if (!normalizedComponentSearch) {
+      return availableComponents
+    }
+
+    return availableComponents.filter((component) => {
+      const nameMatch = component.name.toLowerCase().includes(normalizedComponentSearch)
+      const statusMatch = component.status.toLowerCase().includes(normalizedComponentSearch)
+      return nameMatch || statusMatch
+    })
+  }, [availableComponents, normalizedComponentSearch])
+  const allFilteredSelected =
+    filteredComponents.length > 0 &&
+    filteredComponents.every((component) => selectedComponentIds.includes(component.id))
+  const hasFilteredSelection = filteredComponents.some((component) =>
+    selectedComponentIds.includes(component.id),
+  )
 
   const pollStatuses = useCallback(async () => {
     if (pages.length === 0) {
@@ -212,6 +265,83 @@ export function StatusDashboard({
     }
   }, [isAddFormModalOpen])
 
+  useEffect(() => {
+    const dialog = editModalRef.current
+
+    if (!dialog) {
+      return
+    }
+
+    if (isEditModalOpen) {
+      if (!dialog.open) {
+        dialog.showModal()
+      }
+      return
+    }
+
+    if (dialog.open) {
+      dialog.close()
+    }
+  }, [isEditModalOpen])
+
+  useEffect(() => {
+    if (!isEditModalOpen || !editingPage) {
+      return
+    }
+
+    let isCancelled = false
+
+    const loadComponents = async () => {
+      setIsLoadingComponents(true)
+      setComponentsError(null)
+      setComponentSearch('')
+
+      try {
+        const detection = await detectStatusPageProvider(editingPage.url)
+        const components = detection.availableComponents
+
+        if (isCancelled) {
+          return
+        }
+
+        setAvailableComponents(components)
+
+        const discoveredIds = components.map((component) => component.id)
+        const retainedIds = editingPage.monitoredComponentIds.filter((componentId) =>
+          discoveredIds.includes(componentId),
+        )
+        const nextSelectedIds =
+          discoveredIds.length === 0
+            ? []
+            : retainedIds.length > 0
+              ? retainedIds
+              : discoveredIds
+
+        setSelectedComponentIds(nextSelectedIds)
+      } catch (error) {
+        if (isCancelled) {
+          return
+        }
+
+        setAvailableComponents([])
+        setSelectedComponentIds([])
+        setComponentsError(
+          error instanceof Error ? error.message : 'Failed to load components for this status page.',
+        )
+      } finally {
+        if (!isCancelled) {
+          setIsLoadingComponents(false)
+        }
+      }
+    }
+
+    void loadComponents()
+
+    return () => {
+      isCancelled = true
+    }
+  }, [editingPage, isEditModalOpen])
+
   const buildStoredPage = useCallback(
     (detection: ProviderDetectionResult, preferredName: string): StoredStatusPage => {
       const now = new Date().toISOString()
@@ -250,6 +380,21 @@ export function StatusDashboard({
     setAddFormError(null)
     setAddPageDraft(null)
   }, [isAddingPage])
+
+  const closeEditModal = useCallback(() => {
+    if (isEditingPage) {
+      return
+    }
+
+    setIsEditModalOpen(false)
+    setEditFormError(null)
+    setEditingPageId(null)
+    setIsLoadingComponents(false)
+    setComponentsError(null)
+    setAvailableComponents([])
+    setSelectedComponentIds([])
+    setComponentSearch('')
+  }, [isEditingPage])
 
   const handleUrlDraftSubmit = useCallback(
     async (event: React.FormEvent<HTMLFormElement>) => {
@@ -322,6 +467,80 @@ export function StatusDashboard({
     [addPageDraft, buildStoredPage, onPagesChange, pages],
   )
 
+  const handleEditFormSubmit = useCallback(
+    async (values: { name: string; url: string }) => {
+      if (!editingPage) {
+        setEditFormError('Status page no longer exists.')
+        return
+      }
+
+      setEditFormError(null)
+      setAddError(null)
+      setIsEditingPage(true)
+
+      try {
+        const detection = await detectStatusPageProvider(values.url)
+        const alreadyExists = pages.some(
+          (page) => page.id !== editingPage.id && page.url === detection.baseUrl,
+        )
+
+        if (alreadyExists) {
+          throw new Error('This status page is already in the list.')
+        }
+
+        const discoveredComponentIds = detection.availableComponents.map((component) => component.id)
+        const selectedDiscoveredIds = selectedComponentIds.filter((componentId) =>
+          discoveredComponentIds.includes(componentId),
+        )
+        if (discoveredComponentIds.length > 0 && selectedDiscoveredIds.length === 0) {
+          throw new Error('Select at least 1 component.')
+        }
+
+        const monitoredComponentIds =
+          discoveredComponentIds.length > 0 ? selectedDiscoveredIds : []
+        const nextPage = buildStoredPage(detection, values.name)
+        const updatedPage: StoredStatusPage = {
+          ...nextPage,
+          id: editingPage.id,
+          createdAt: editingPage.createdAt,
+          monitoredComponentIds,
+        }
+        const nextPages = pages.map((page) => (page.id === editingPage.id ? updatedPage : page))
+
+        saveStatusPages(nextPages)
+        onPagesChange(nextPages)
+        setIsEditModalOpen(false)
+        setEditingPageId(null)
+      } catch (error) {
+        setEditFormError(
+          error instanceof Error ? error.message : 'Unknown error while saving status page.',
+        )
+      } finally {
+        setIsEditingPage(false)
+      }
+    },
+    [buildStoredPage, editingPage, onPagesChange, pages, selectedComponentIds],
+  )
+
+  const handleDeleteEditingPage = useCallback(() => {
+    if (!editingPage || isEditingPage) {
+      return
+    }
+
+    const shouldDelete = window.confirm('Delete this status page?')
+
+    if (!shouldDelete) {
+      return
+    }
+
+    const nextPages = pages.filter((page) => page.id !== editingPage.id)
+    saveStatusPages(nextPages)
+    onPagesChange(nextPages)
+    setIsEditModalOpen(false)
+    setEditingPageId(null)
+    setEditFormError(null)
+  }, [editingPage, isEditingPage, onPagesChange, pages])
+
   const addPageFromUrl = useCallback(
     async (url: string) => {
       setAddError(null)
@@ -358,9 +577,59 @@ export function StatusDashboard({
     setAddError(null)
     setUrlModalError(null)
     setAddFormError(null)
+    setEditFormError(null)
+    setIsEditModalOpen(false)
+    setEditingPageId(null)
+    setIsAddFormModalOpen(false)
+    setAddPageDraft(null)
     setUrlDraft('https://')
     setIsUrlModalOpen(true)
   }, [])
+
+  const handleCardClick = useCallback((pageId: string) => {
+    setAddError(null)
+    setEditFormError(null)
+    setIsUrlModalOpen(false)
+    setIsAddFormModalOpen(false)
+    setAddPageDraft(null)
+    setComponentsError(null)
+    setAvailableComponents([])
+    setSelectedComponentIds([])
+    setComponentSearch('')
+    setEditingPageId(pageId)
+    setIsEditModalOpen(true)
+  }, [])
+
+  const handleToggleComponentSelection = useCallback((componentId: string) => {
+    setSelectedComponentIds((previous) =>
+      previous.includes(componentId)
+        ? previous.filter((value) => value !== componentId)
+        : [...previous, componentId],
+    )
+  }, [])
+
+  const handleSelectFilteredComponents = useCallback(() => {
+    if (filteredComponents.length === 0) {
+      return
+    }
+
+    setSelectedComponentIds((previous) => {
+      const merged = new Set(previous)
+      filteredComponents.forEach((component) => {
+        merged.add(component.id)
+      })
+      return [...merged]
+    })
+  }, [filteredComponents])
+
+  const handleDeselectFilteredComponents = useCallback(() => {
+    if (filteredComponents.length === 0) {
+      return
+    }
+
+    const filteredIds = new Set(filteredComponents.map((component) => component.id))
+    setSelectedComponentIds((previous) => previous.filter((value) => !filteredIds.has(value)))
+  }, [filteredComponents])
 
   const cards = useMemo(
     () =>
@@ -369,9 +638,10 @@ export function StatusDashboard({
           key={page.id}
           page={page}
           status={statusByPageId[page.id] ?? getDefaultStatus()}
+          onOpenSettings={() => handleCardClick(page.id)}
         />
       )),
-    [pages, statusByPageId],
+    [handleCardClick, pages, statusByPageId],
   )
 
   return (
@@ -528,6 +798,130 @@ export function StatusDashboard({
                 onSubmit={handleAddFormSubmit}
                 onCancel={closeAddFormModal}
               />
+            </div>
+          ) : null}
+        </div>
+      </dialog>
+
+      <dialog
+        ref={editModalRef}
+        className="editor-dialog w-[min(96vw,760px)] rounded-2xl border border-slate-700/80 bg-[#111915] p-0 text-slate-100 shadow-[0_30px_80px_rgba(0,0,0,0.55)]"
+        onCancel={(event) => {
+          if (isEditingPage) {
+            event.preventDefault()
+            return
+          }
+          closeEditModal()
+        }}
+        onClose={closeEditModal}
+        onMouseDown={(event) => {
+          if (event.target === event.currentTarget) {
+            closeEditModal()
+          }
+        }}
+      >
+        <div className="p-6 md:p-7">
+          <h2 className="text-2xl font-semibold text-slate-100">Edit status page</h2>
+          <p className="mt-2 text-sm text-slate-300">Update the name or URL and save changes.</p>
+          {editingPage ? (
+            <div className="mt-5 space-y-4">
+              <StatusPageForm
+                key={editingPage.id}
+                initialValues={{
+                  name: editingPage.name,
+                  url: editingPage.url,
+                }}
+                isSubmitting={isEditingPage}
+                errorMessage={editFormError}
+                submitLabel="Save changes"
+                onSubmit={handleEditFormSubmit}
+                onCancel={closeEditModal}
+              />
+              <section className="rounded-xl border border-slate-700/80 bg-[#0f1714]/70 p-4">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <h3 className="text-sm font-semibold uppercase tracking-[0.08em] text-slate-200">
+                    Monitored components
+                  </h3>
+                  <span className="text-xs text-slate-400">
+                    {selectedComponentIds.length}/{availableComponents.length} selected
+                  </span>
+                </div>
+
+                {isLoadingComponents ? (
+                  <p className="mt-3 text-sm text-slate-300">Loading components...</p>
+                ) : componentsError ? (
+                  <p className="mt-3 text-sm text-rose-300">{componentsError}</p>
+                ) : availableComponents.length === 0 ? (
+                  <p className="mt-3 text-sm text-slate-400">
+                    No components available for this status page.
+                  </p>
+                ) : (
+                  <>
+                    <div className="mt-3 flex flex-wrap items-center gap-2">
+                      <input
+                        type="search"
+                        value={componentSearch}
+                        onChange={(event) => setComponentSearch(event.target.value)}
+                        placeholder="Search components"
+                        className="min-w-[240px] flex-1 rounded-lg border border-slate-600/80 bg-[#0b1210] px-3 py-2 text-sm text-slate-100 outline-none transition focus:border-emerald-400"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleSelectFilteredComponents}
+                        disabled={allFilteredSelected || filteredComponents.length === 0}
+                        className="rounded-lg border border-slate-600 px-3 py-2 text-xs font-semibold uppercase tracking-[0.08em] text-slate-300 transition hover:border-slate-400 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        Select visible
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleDeselectFilteredComponents}
+                        disabled={!hasFilteredSelection}
+                        className="rounded-lg border border-slate-600 px-3 py-2 text-xs font-semibold uppercase tracking-[0.08em] text-slate-300 transition hover:border-slate-400 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        Clear visible
+                      </button>
+                    </div>
+
+                    <ul className="mt-3 max-h-56 space-y-2 overflow-y-auto pr-1">
+                      {filteredComponents.map((component) => {
+                        const isSelected = selectedComponentIds.includes(component.id)
+
+                        return (
+                          <li key={component.id}>
+                            <label className="flex cursor-pointer items-center justify-between gap-3 rounded-lg border border-slate-700/80 bg-[#101814]/80 px-3 py-2 hover:border-slate-600">
+                              <span className="flex items-center gap-3">
+                                <input
+                                  type="checkbox"
+                                  checked={isSelected}
+                                  onChange={() => handleToggleComponentSelection(component.id)}
+                                  className="h-4 w-4 rounded border-slate-500 bg-slate-900 text-emerald-400 focus:ring-emerald-400"
+                                />
+                                <span className="text-sm text-slate-100">{component.name}</span>
+                              </span>
+                              <span
+                                className={`rounded-full px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] ${getComponentTone(component.status)}`}
+                              >
+                                {formatComponentStatus(component.status)}
+                              </span>
+                            </label>
+                          </li>
+                        )
+                      })}
+                    </ul>
+                  </>
+                )}
+              </section>
+              <div className="border-t border-slate-700/80 pt-4">
+                <button
+                  type="button"
+                  onClick={handleDeleteEditingPage}
+                  disabled={isEditingPage}
+                  className="rounded-xl border border-rose-500/60 bg-rose-500/12 px-4 py-2 text-sm font-semibold text-rose-200 transition hover:bg-rose-500/18 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  Delete status page
+                </button>
+              </div>
             </div>
           ) : null}
         </div>
