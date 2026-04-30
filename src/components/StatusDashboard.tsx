@@ -1,16 +1,27 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { detectStatusPageProvider } from '../services/detectStatusPageProvider'
 import { fetchStatusPageStatus } from '../services/fetchStatusPageStatus'
 import { saveStatusPages } from '../services/localStorageStatusPages'
 import { createId } from '../utils/createId'
 import { StatusCard } from './StatusCard'
-import type { AtlassianIndicator, RuntimeStatus, StoredStatusPage } from '../types/status'
+import { StatusPageForm } from './StatusPageForm'
+import type {
+  AtlassianIndicator,
+  ProviderDetectionResult,
+  RuntimeStatus,
+  StoredStatusPage,
+} from '../types/status'
 
 type StatusDashboardProps = {
   pages: StoredStatusPage[]
   refreshToken: number
   onPagesChange: (pages: StoredStatusPage[]) => void
   onOverallIndicatorChange: (indicator: AtlassianIndicator) => void
+}
+
+type AddPageDraft = {
+  detection: ProviderDetectionResult
+  initialName: string
 }
 
 function indicatorSeverity(indicator: AtlassianIndicator): number {
@@ -50,9 +61,17 @@ export function StatusDashboard({
 }: StatusDashboardProps) {
   const [statusByPageId, setStatusByPageId] = useState<Record<string, RuntimeStatus>>({})
   const [isPolling, setIsPolling] = useState(false)
-  const [quickUrl, setQuickUrl] = useState('')
   const [addError, setAddError] = useState<string | null>(null)
   const [isAddingPage, setIsAddingPage] = useState(false)
+  const [isPreparingAddFlow, setIsPreparingAddFlow] = useState(false)
+  const [isUrlModalOpen, setIsUrlModalOpen] = useState(false)
+  const [urlDraft, setUrlDraft] = useState('https://')
+  const [urlModalError, setUrlModalError] = useState<string | null>(null)
+  const [isAddFormModalOpen, setIsAddFormModalOpen] = useState(false)
+  const [addFormError, setAddFormError] = useState<string | null>(null)
+  const [addPageDraft, setAddPageDraft] = useState<AddPageDraft | null>(null)
+  const urlModalRef = useRef<HTMLDialogElement | null>(null)
+  const addFormModalRef = useRef<HTMLDialogElement | null>(null)
 
   const pollStatuses = useCallback(async () => {
     if (pages.length === 0) {
@@ -155,6 +174,154 @@ export function StatusDashboard({
     }
   }, [pollStatuses, refreshToken])
 
+  useEffect(() => {
+    const dialog = urlModalRef.current
+
+    if (!dialog) {
+      return
+    }
+
+    if (isUrlModalOpen) {
+      if (!dialog.open) {
+        dialog.showModal()
+      }
+      return
+    }
+
+    if (dialog.open) {
+      dialog.close()
+    }
+  }, [isUrlModalOpen])
+
+  useEffect(() => {
+    const dialog = addFormModalRef.current
+
+    if (!dialog) {
+      return
+    }
+
+    if (isAddFormModalOpen) {
+      if (!dialog.open) {
+        dialog.showModal()
+      }
+      return
+    }
+
+    if (dialog.open) {
+      dialog.close()
+    }
+  }, [isAddFormModalOpen])
+
+  const buildStoredPage = useCallback(
+    (detection: ProviderDetectionResult, preferredName: string): StoredStatusPage => {
+      const now = new Date().toISOString()
+      const hostname = new URL(detection.baseUrl).hostname
+
+      return {
+        id: createId(),
+        name: preferredName.trim() || detection.name?.trim() || hostname,
+        url: detection.baseUrl,
+        provider: detection.provider,
+        statusApiUrl: detection.statusApiUrl,
+        summaryApiUrl: detection.summaryApiUrl,
+        monitoredComponentIds: detection.availableComponents.map((component) => component.id),
+        createdAt: now,
+        updatedAt: now,
+      }
+    },
+    [],
+  )
+
+  const closeUrlModal = useCallback(() => {
+    if (isPreparingAddFlow) {
+      return
+    }
+
+    setIsUrlModalOpen(false)
+    setUrlModalError(null)
+  }, [isPreparingAddFlow])
+
+  const closeAddFormModal = useCallback(() => {
+    if (isAddingPage) {
+      return
+    }
+
+    setIsAddFormModalOpen(false)
+    setAddFormError(null)
+    setAddPageDraft(null)
+  }, [isAddingPage])
+
+  const handleUrlDraftSubmit = useCallback(
+    async (event: React.FormEvent<HTMLFormElement>) => {
+      event.preventDefault()
+
+      if (isPreparingAddFlow) {
+        return
+      }
+
+      setUrlModalError(null)
+      setAddError(null)
+      setIsPreparingAddFlow(true)
+
+      try {
+        const detection = await detectStatusPageProvider(urlDraft)
+        const alreadyExists = pages.some((page) => page.url === detection.baseUrl)
+
+        if (alreadyExists) {
+          throw new Error('This status page is already in the list.')
+        }
+
+        const initialName = detection.name?.trim() || new URL(detection.baseUrl).hostname
+        setAddPageDraft({ detection, initialName })
+        setIsUrlModalOpen(false)
+        setAddFormError(null)
+        setIsAddFormModalOpen(true)
+      } catch (error) {
+        setUrlModalError(error instanceof Error ? error.message : 'Unknown error while validating URL.')
+      } finally {
+        setIsPreparingAddFlow(false)
+      }
+    },
+    [isPreparingAddFlow, pages, urlDraft],
+  )
+
+  const handleAddFormSubmit = useCallback(
+    async (values: { name: string; url: string }) => {
+      setAddFormError(null)
+      setAddError(null)
+      setIsAddingPage(true)
+
+      try {
+        const rawUrl = values.url.trim()
+        const hasUnchangedDraftUrl =
+          addPageDraft && rawUrl.length > 0 && rawUrl === addPageDraft.detection.baseUrl
+        const detection = hasUnchangedDraftUrl
+          ? addPageDraft.detection
+          : await detectStatusPageProvider(rawUrl)
+        const alreadyExists = pages.some((page) => page.url === detection.baseUrl)
+
+        if (alreadyExists) {
+          throw new Error('This status page is already in the list.')
+        }
+
+        const nextPages: StoredStatusPage[] = [...pages, buildStoredPage(detection, values.name)]
+        saveStatusPages(nextPages)
+        onPagesChange(nextPages)
+
+        setIsAddFormModalOpen(false)
+        setAddPageDraft(null)
+        setUrlDraft('https://')
+      } catch (error) {
+        setAddFormError(
+          error instanceof Error ? error.message : 'Unknown error while adding status page.',
+        )
+      } finally {
+        setIsAddingPage(false)
+      }
+    },
+    [addPageDraft, buildStoredPage, onPagesChange, pages],
+  )
+
   const addPageFromUrl = useCallback(
     async (url: string) => {
       setAddError(null)
@@ -168,27 +335,10 @@ export function StatusDashboard({
           throw new Error('This status page is already in the list.')
         }
 
-        const now = new Date().toISOString()
-        const hostname = new URL(detection.baseUrl).hostname
-
-        const nextPages: StoredStatusPage[] = [
-          ...pages,
-          {
-            id: createId(),
-            name: detection.name?.trim() || hostname,
-            url: detection.baseUrl,
-            provider: detection.provider,
-            statusApiUrl: detection.statusApiUrl,
-            summaryApiUrl: detection.summaryApiUrl,
-            monitoredComponentIds: detection.availableComponents.map((component) => component.id),
-            createdAt: now,
-            updatedAt: now,
-          },
-        ]
+        const nextPages: StoredStatusPage[] = [...pages, buildStoredPage(detection, '')]
 
         saveStatusPages(nextPages)
         onPagesChange(nextPages)
-        setQuickUrl('')
       } catch (error) {
         setAddError(
           error instanceof Error ? error.message : 'Unknown error while adding status page.',
@@ -197,7 +347,7 @@ export function StatusDashboard({
         setIsAddingPage(false)
       }
     },
-    [onPagesChange, pages],
+    [buildStoredPage, onPagesChange, pages],
   )
 
   const handleAddSample = useCallback(async () => {
@@ -205,15 +355,12 @@ export function StatusDashboard({
   }, [addPageFromUrl])
 
   const handleQuickAddClick = useCallback(() => {
-    const rawUrl = window.prompt('Voer status page URL in', 'https://')
-    const nextUrl = rawUrl?.trim()
-
-    if (!nextUrl) {
-      return
-    }
-
-    void addPageFromUrl(nextUrl)
-  }, [addPageFromUrl])
+    setAddError(null)
+    setUrlModalError(null)
+    setAddFormError(null)
+    setUrlDraft('https://')
+    setIsUrlModalOpen(true)
+  }, [])
 
   const cards = useMemo(
     () =>
@@ -237,10 +384,10 @@ export function StatusDashboard({
           <button
             type="button"
             onClick={handleQuickAddClick}
-            disabled={isAddingPage}
+            disabled={isPreparingAddFlow || isAddingPage}
             className="rounded-xl bg-emerald-400 px-4 py-2 text-sm font-semibold text-[#042416] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {isAddingPage ? 'Toevoegen...' : 'Voeg toe'}
+            {isPreparingAddFlow || isAddingPage ? 'Adding...' : 'Add'}
           </button>
           <div className="flex items-center gap-3 rounded-xl border border-slate-500/30 bg-slate-800/30 px-4 py-2 text-slate-200">
             <span className="status-pulse h-3 w-3 rounded-full bg-emerald-300" aria-hidden="true" />
@@ -256,30 +403,15 @@ export function StatusDashboard({
           <p className="mx-auto mt-4 max-w-lg text-xl text-slate-300">
             There are currently no active service monitors configured.
           </p>
-          <form
-            className="mx-auto mt-8 flex max-w-xl flex-col gap-3"
-            onSubmit={(event) => {
-              event.preventDefault()
-              void addPageFromUrl(quickUrl)
-            }}
-          >
-            <input
-              type="url"
-              value={quickUrl}
-              onChange={(event) => setQuickUrl(event.target.value)}
-              placeholder="https://status.example.com"
-              className="w-full rounded-xl border border-slate-600/80 bg-[#0f1714] px-4 py-3 text-lg text-slate-100 outline-none transition focus:border-emerald-400"
-              required
-            />
+          <div className="mt-4 flex flex-wrap justify-center gap-3">
             <button
-              type="submit"
-              disabled={isAddingPage}
+              type="button"
+              onClick={handleQuickAddClick}
+              disabled={isPreparingAddFlow || isAddingPage}
               className="rounded-xl bg-emerald-400 px-6 py-3 text-lg font-semibold text-[#042416] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {isAddingPage ? 'Validating...' : 'Add Status Page'}
+              Add status page
             </button>
-          </form>
-          <div className="mt-4 flex flex-wrap justify-center gap-3">
             <button
               type="button"
               onClick={() => {
@@ -299,6 +431,107 @@ export function StatusDashboard({
           {addError ? <p className="mt-6 text-sm text-rose-300">{addError}</p> : null}
         </>
       )}
+
+      <dialog
+        ref={urlModalRef}
+        className="editor-dialog w-[min(92vw,680px)] rounded-2xl border border-slate-700/80 bg-[#111915] p-0 text-slate-100 shadow-[0_30px_80px_rgba(0,0,0,0.55)]"
+        onCancel={(event) => {
+          if (isPreparingAddFlow) {
+            event.preventDefault()
+            return
+          }
+          closeUrlModal()
+        }}
+        onClose={closeUrlModal}
+        onMouseDown={(event) => {
+          if (event.target === event.currentTarget) {
+            closeUrlModal()
+          }
+        }}
+      >
+        <div className="p-6 md:p-7">
+          <h2 className="text-2xl font-semibold text-slate-100">Step 1: Enter URL</h2>
+          <p className="mt-2 text-sm text-slate-300">
+            Enter the status page URL. Then we will open the detailed form.
+          </p>
+
+          <form className="mt-5 space-y-4" onSubmit={handleUrlDraftSubmit}>
+            <div>
+              <label className="mb-2 block text-sm font-semibold uppercase tracking-[0.08em] text-slate-300" htmlFor="status-page-url-draft">
+                Status page URL
+              </label>
+              <input
+                id="status-page-url-draft"
+                type="url"
+                value={urlDraft}
+                onChange={(event) => setUrlDraft(event.target.value)}
+                placeholder="https://www.githubstatus.com"
+                className="w-full rounded-xl border border-slate-600/80 bg-[#0f1714] px-4 py-3 text-lg text-slate-100 outline-none transition focus:border-emerald-400"
+                required
+                autoFocus
+              />
+            </div>
+
+            {urlModalError ? <p className="text-sm font-medium text-rose-300">{urlModalError}</p> : null}
+
+            <div className="flex flex-wrap items-center gap-3">
+              <button
+                type="submit"
+                disabled={isPreparingAddFlow}
+                className="rounded-xl bg-emerald-400 px-5 py-3 text-base font-semibold uppercase tracking-[0.08em] text-[#042416] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {isPreparingAddFlow ? 'Validating...' : 'Continue'}
+              </button>
+              <button
+                type="button"
+                onClick={closeUrlModal}
+                className="rounded-xl border border-slate-600 px-4 py-3 text-sm font-semibold uppercase tracking-[0.08em] text-slate-300 transition hover:border-slate-400"
+              >
+                Cancel
+              </button>
+            </div>
+          </form>
+        </div>
+      </dialog>
+
+      <dialog
+        ref={addFormModalRef}
+        className="editor-dialog w-[min(96vw,760px)] rounded-2xl border border-slate-700/80 bg-[#111915] p-0 text-slate-100 shadow-[0_30px_80px_rgba(0,0,0,0.55)]"
+        onCancel={(event) => {
+          if (isAddingPage) {
+            event.preventDefault()
+            return
+          }
+          closeAddFormModal()
+        }}
+        onClose={closeAddFormModal}
+        onMouseDown={(event) => {
+          if (event.target === event.currentTarget) {
+            closeAddFormModal()
+          }
+        }}
+      >
+        <div className="p-6 md:p-7">
+          <h2 className="text-2xl font-semibold text-slate-100">Step 2: Detailed settings</h2>
+          <p className="mt-2 text-sm text-slate-300">Adjust the name or URL and save.</p>
+          {addPageDraft ? (
+            <div className="mt-5">
+              <StatusPageForm
+                key={addPageDraft.detection.baseUrl}
+                initialValues={{
+                  name: addPageDraft.initialName,
+                  url: addPageDraft.detection.baseUrl,
+                }}
+                isSubmitting={isAddingPage}
+                errorMessage={addFormError}
+                submitLabel="Add status page"
+                onSubmit={handleAddFormSubmit}
+                onCancel={closeAddFormModal}
+              />
+            </div>
+          ) : null}
+        </div>
+      </dialog>
     </main>
   )
 }
