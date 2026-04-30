@@ -1,7 +1,13 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, Route, Routes, useLocation } from 'react-router-dom'
 import { StatusDashboard } from './components/StatusDashboard'
 import { loadStatusPages, saveStatusPages } from './services/localStorageStatusPages'
+import {
+  buildDashboardShareHash,
+  mergeResolvedSharedPages,
+  parseDashboardShareHash,
+} from './services/shareDashboard'
+import { detectStatusPageProvider } from './services/detectStatusPageProvider'
 import { JsonImportExportPage } from './pages/JsonImportExportPage'
 import { SettingsPage } from './pages/SettingsPage'
 import type { AtlassianIndicator, StoredStatusPage } from './types/status'
@@ -73,6 +79,16 @@ function formatRelativeRefresh(lastRefreshAt: Date | null): string {
   return `${elapsedHours}h ago`
 }
 
+function clearWindowHash(): void {
+  if (typeof window === 'undefined') {
+    return
+  }
+
+  const url = new URL(window.location.href)
+  url.hash = ''
+  window.history.replaceState(null, '', url.toString())
+}
+
 function NavLink({ to, label, isActive }: { to: string; label: string; isActive: boolean }) {
   return (
     <Link
@@ -94,6 +110,8 @@ export default function App() {
   const [refreshToken, setRefreshToken] = useState(0)
   const [overallIndicator, setOverallIndicator] = useState<AtlassianIndicator>('unknown')
   const location = useLocation()
+  const pagesRef = useRef(pages)
+  const processedShareHashesRef = useRef(new Set<string>())
 
   const isDashboardRoute = location.pathname === '/'
   const isSettingsRoute = location.pathname === '/settings'
@@ -101,10 +119,94 @@ export default function App() {
 
   const refreshLabel = useMemo(() => formatRelativeRefresh(lastRefreshAt), [lastRefreshAt])
 
-  const handlePagesChange = (nextPages: StoredStatusPage[]) => {
+  const handlePagesChange = useCallback((nextPages: StoredStatusPage[]) => {
     setPages(nextPages)
     saveStatusPages(nextPages)
-  }
+  }, [])
+
+  const handleShareDashboard = useCallback(async () => {
+    if (pages.length === 0) {
+      return
+    }
+
+    try {
+      const hashPayload = buildDashboardShareHash(pages)
+      const shareUrl = new URL(window.location.href)
+      shareUrl.pathname = '/'
+      shareUrl.search = ''
+      shareUrl.hash = hashPayload
+      const shareLink = shareUrl.toString()
+
+      if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+        await navigator.clipboard.writeText(shareLink)
+        return
+      }
+
+      window.prompt('Copy this dashboard share link:', shareLink)
+    } catch (error) {
+      console.error('[App] share dashboard failed', error)
+    }
+  }, [pages])
+
+  useEffect(() => {
+    pagesRef.current = pages
+  }, [pages])
+
+  useEffect(() => {
+    const rawHash = location.hash.trim()
+
+    if (!rawHash || rawHash === '#') {
+      return
+    }
+
+    if (processedShareHashesRef.current.has(rawHash)) {
+      return
+    }
+
+    let payload = null
+
+    try {
+      payload = parseDashboardShareHash(rawHash)
+    } catch (error) {
+      processedShareHashesRef.current.add(rawHash)
+      console.error('[App] invalid dashboard share hash', error)
+      clearWindowHash()
+      return
+    }
+
+    if (!payload) {
+      return
+    }
+
+    processedShareHashesRef.current.add(rawHash)
+
+    const mergeSharedPages = async () => {
+      try {
+        if (payload.pages.length === 0) {
+          clearWindowHash()
+          return
+        }
+
+        const resolvedPages = await Promise.all(
+          payload.pages.map(async (page) => ({
+            detection: await detectStatusPageProvider(page.url),
+            monitoredComponentIds: page.monitoredComponentIds,
+          })),
+        )
+        const mergeResult = mergeResolvedSharedPages(pagesRef.current, resolvedPages)
+
+        if (mergeResult.hasChanges) {
+          handlePagesChange(mergeResult.pages)
+        }
+      } catch (error) {
+        console.error('[App] failed to merge dashboard share hash', error)
+      } finally {
+        clearWindowHash()
+      }
+    }
+
+    void mergeSharedPages()
+  }, [handlePagesChange, location.hash])
 
   useEffect(() => {
     if (pages.length > 0 && overallIndicator === 'unknown') {
@@ -149,6 +251,16 @@ export default function App() {
 
           <div className="flex items-center gap-4 text-slate-300">
             <span className="hidden text-xl md:block">Refreshed: {refreshLabel}</span>
+            <button
+              type="button"
+              className="rounded-md border border-slate-600 px-3 py-1 text-sm font-semibold text-slate-200 transition hover:border-slate-400 hover:bg-slate-800/70"
+              onClick={() => {
+                void handleShareDashboard()
+              }}
+              title="Share dashboard"
+            >
+              Share dashboard
+            </button>
             <button
               type="button"
               className="rounded-md p-2 transition hover:bg-slate-800/70"
