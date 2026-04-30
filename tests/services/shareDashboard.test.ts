@@ -41,9 +41,9 @@ function createDetectionResult(
 }
 
 describe('shareDashboard payload', () => {
-  it('encodes and decodes a payload roundtrip', () => {
+  it('encodes and decodes a payload roundtrip', async () => {
     const payload = {
-      v: 1,
+      v: 2,
       pages: [
         {
           url: 'https://status.example.com',
@@ -52,21 +52,21 @@ describe('shareDashboard payload', () => {
       ],
     }
 
-    const encoded = encodeDashboardSharePayload(payload)
-    const decoded = decodeDashboardSharePayload(encoded)
+    const encoded = await encodeDashboardSharePayload(payload)
+    const decoded = await decodeDashboardSharePayload(encoded)
 
     expect(decoded).toEqual(payload)
   })
 
-  it('parses a payload from hash-only value', () => {
+  it('parses a payload from hash-only value', async () => {
     const payload = buildDashboardSharePayload([
       createStoredPage({ monitoredComponentIds: ['api', 'api', 'db'] }),
     ])
-    const encoded = encodeDashboardSharePayload(payload)
-    const parsed = parseDashboardShareHash(`#${encoded}`)
+    const encoded = await encodeDashboardSharePayload(payload)
+    const parsed = await parseDashboardShareHash(`#${encoded}`)
 
     expect(parsed).toEqual({
-      v: 1,
+      v: 2,
       pages: [
         {
           url: 'https://status.example.com',
@@ -74,6 +74,35 @@ describe('shareDashboard payload', () => {
         },
       ],
     })
+  })
+
+  it('creates shorter payloads than legacy json+base64 for large selections', async () => {
+    const componentIds = Array.from({ length: 35 }, (_, index) => `component-${index + 1}`)
+    const payload = {
+      v: 2,
+      pages: [
+        {
+          url: 'https://status.example.com',
+          monitoredComponentIds: componentIds,
+        },
+      ],
+    }
+    const legacyPayload = {
+      v: 1,
+      pages: [
+        {
+          url: 'https://status.example.com',
+          monitoredComponentIds: componentIds,
+        },
+      ],
+    }
+    const legacyEncoded = btoa(JSON.stringify(legacyPayload))
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=+$/g, '')
+    const compactEncoded = await encodeDashboardSharePayload(payload)
+
+    expect(compactEncoded.length).toBeLessThan(legacyEncoded.length)
   })
 })
 

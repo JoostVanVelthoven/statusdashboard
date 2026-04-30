@@ -130,7 +130,7 @@ export default function App() {
     }
 
     try {
-      const hashPayload = buildDashboardShareHash(pages)
+      const hashPayload = await buildDashboardShareHash(pages)
       const shareUrl = new URL(window.location.href)
       shareUrl.pathname = '/'
       shareUrl.search = ''
@@ -163,25 +163,20 @@ export default function App() {
       return
     }
 
-    let payload = null
-
-    try {
-      payload = parseDashboardShareHash(rawHash)
-    } catch (error) {
-      processedShareHashesRef.current.add(rawHash)
-      console.error('[App] invalid dashboard share hash', error)
-      clearWindowHash()
-      return
-    }
-
-    if (!payload) {
-      return
-    }
-
     processedShareHashesRef.current.add(rawHash)
 
     const mergeSharedPages = async () => {
+      let shouldClearHash = false
+
       try {
+        const payload = await parseDashboardShareHash(rawHash)
+
+        if (!payload) {
+          return
+        }
+
+        shouldClearHash = true
+
         if (payload.pages.length === 0) {
           clearWindowHash()
           return
@@ -199,9 +194,12 @@ export default function App() {
           handlePagesChange(mergeResult.pages)
         }
       } catch (error) {
-        console.error('[App] failed to merge dashboard share hash', error)
+        shouldClearHash = true
+        console.error('[App] invalid or failed dashboard share hash', error)
       } finally {
-        clearWindowHash()
+        if (shouldClearHash) {
+          clearWindowHash()
+        }
       }
     }
 
