@@ -61,17 +61,14 @@ export function JsonImportExportPage({ pages, onPagesChange }: JsonImportExportP
     <main className="mx-auto w-full max-w-[1400px] p-8 md:p-10">
       <header className="mb-10 flex flex-col justify-between gap-6 lg:flex-row lg:items-center">
         <div>
-          <h1 className="text-5xl font-semibold tracking-tight text-slate-100">JSON Import / Export</h1>
-          <p className="mt-3 text-2xl text-slate-300">
-            Export or import the full settings state as formatted JSON.
-          </p>
+          <h1 className="text-4xl font-semibold tracking-tight text-slate-100">JSON Import / Export</h1>
         </div>
         <div className="flex flex-wrap gap-3">
           <Link
-            to="/settings"
+            to="/"
             className="inline-flex items-center justify-center rounded-xl bg-slate-700/80 px-6 py-3 text-xl font-semibold text-slate-200 transition hover:bg-slate-600"
           >
-            Back to Settings
+            Back to Dashboard
           </Link>
           <Link
             to="/"
@@ -84,9 +81,6 @@ export function JsonImportExportPage({ pages, onPagesChange }: JsonImportExportP
 
       <section className="rounded-2xl border border-slate-700/70 bg-[#141d1a]/90 p-6 shadow-[0_16px_45px_rgba(0,0,0,0.35)]">
         <h2 className="text-3xl font-semibold text-slate-100">JSON State</h2>
-        <p className="mt-2 text-sm text-slate-400">
-          This single textarea is used for both export and import. Edit JSON and click Save.
-        </p>
         <textarea
           value={jsonText}
           onChange={(event) => setJsonText(event.target.value)}

@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Link, Route, Routes, useLocation } from 'react-router-dom'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { Link, Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { StatusDashboard } from './components/StatusDashboard'
 import { loadStatusPages, saveStatusPages } from './services/localStorageStatusPages'
 import {
@@ -9,7 +9,6 @@ import {
 } from './services/shareDashboard'
 import { detectStatusPageProvider } from './services/detectStatusPageProvider'
 import { JsonImportExportPage } from './pages/JsonImportExportPage'
-import { SettingsPage } from './pages/SettingsPage'
 import type { AtlassianIndicator, StoredStatusPage } from './types/status'
 
 type MonitorChromeState = {
@@ -19,7 +18,7 @@ type MonitorChromeState = {
 
 const DEFAULT_CHROME_STATE: MonitorChromeState = {
   color: '#38bdf8',
-  title: '[IDLE] Sentinel NOC // Command Deck',
+  title: 'Status Dashboard',
 }
 
 function getMonitorChromeState(indicator: AtlassianIndicator): MonitorChromeState {
@@ -27,23 +26,23 @@ function getMonitorChromeState(indicator: AtlassianIndicator): MonitorChromeStat
     case 'none':
       return {
         color: '#22c55e',
-        title: '[GREEN] Sentinel NOC // Green Orbit - All systems nominal',
+        title: 'All systems operational',
       }
     case 'minor':
     case 'major':
       return {
         color: '#f59e0b',
-        title: '[AMBER] Sentinel NOC // Amber Pulse - Service degradation',
+        title: 'Service degradation detected',
       }
     case 'critical':
       return {
         color: '#ef4444',
-        title: '[RED] Sentinel NOC // Red Alert - Major outage',
+        title: 'Major outage detected',
       }
     default:
       return {
         color: '#94a3b8',
-        title: '[GRAY] Sentinel NOC // Gray Horizon - Status unknown',
+        title: 'Status unknown',
       }
   }
 }
@@ -55,28 +54,6 @@ function buildFaviconDataUrl(color: string): string {
   <circle cx="32" cy="32" r="10" fill="#0b1220" />
 </svg>`
   return `data:image/svg+xml,${encodeURIComponent(svg)}`
-}
-
-function formatRelativeRefresh(lastRefreshAt: Date | null): string {
-  if (!lastRefreshAt) {
-    return 'Not refreshed yet'
-  }
-
-  const now = Date.now()
-  const elapsedSeconds = Math.max(0, Math.floor((now - lastRefreshAt.getTime()) / 1000))
-
-  if (elapsedSeconds < 60) {
-    return `${elapsedSeconds}s ago`
-  }
-
-  const elapsedMinutes = Math.floor(elapsedSeconds / 60)
-
-  if (elapsedMinutes < 60) {
-    return `${elapsedMinutes}m ago`
-  }
-
-  const elapsedHours = Math.floor(elapsedMinutes / 60)
-  return `${elapsedHours}h ago`
 }
 
 function clearWindowHash(): void {
@@ -106,7 +83,6 @@ function NavLink({ to, label, isActive }: { to: string; label: string; isActive:
 
 export default function App() {
   const [pages, setPages] = useState<StoredStatusPage[]>(() => loadStatusPages())
-  const [lastRefreshAt, setLastRefreshAt] = useState<Date | null>(null)
   const [refreshToken, setRefreshToken] = useState(0)
   const [overallIndicator, setOverallIndicator] = useState<AtlassianIndicator>('unknown')
   const location = useLocation()
@@ -114,10 +90,6 @@ export default function App() {
   const processedShareHashesRef = useRef(new Set<string>())
 
   const isDashboardRoute = location.pathname === '/'
-  const isSettingsRoute = location.pathname === '/settings'
-  const isJsonRoute = location.pathname === '/settings-json'
-
-  const refreshLabel = useMemo(() => formatRelativeRefresh(lastRefreshAt), [lastRefreshAt])
 
   const handlePagesChange = useCallback((nextPages: StoredStatusPage[]) => {
     setPages(nextPages)
@@ -236,20 +208,17 @@ export default function App() {
   }, [overallIndicator, pages.length])
 
   return (
-    <div className="min-h-screen bg-[#0e1511] text-slate-100">
-      <nav className="sticky top-0 z-50 border-b border-slate-800 bg-[#020826]/95 shadow-lg shadow-black/20 backdrop-blur">
+    <div className="flex min-h-screen flex-col bg-[#101512] text-slate-100">
+      <nav className="sticky top-0 z-50 border-b border-slate-800/80 bg-[#0a1612]/90 shadow-md shadow-black/20 backdrop-blur">
         <div className="mx-auto flex w-full max-w-[1920px] items-center justify-between px-8 py-4 md:px-10">
           <div className="flex items-center gap-8">
-            <span className="text-4xl font-bold tracking-tight text-white">Sentinel NOC</span>
-            <div className="hidden items-center gap-6 md:flex">
+            <div className="flex items-center gap-4 md:gap-6">
               <NavLink to="/" label="Dashboard" isActive={isDashboardRoute} />
-              <NavLink to="/settings" label="Settings" isActive={isSettingsRoute} />
-              <NavLink to="/settings-json" label="JSON" isActive={isJsonRoute} />
             </div>
           </div>
 
           <div className="flex items-center gap-4 text-slate-300">
-            <span className="hidden text-xl md:block">Refreshed: {refreshLabel}</span>
+            <span className="hidden text-lg md:block">Refresh rate: 60s</span>
             <button
               type="button"
               className="rounded-md border border-slate-600 px-3 py-1 text-sm font-semibold text-slate-200 transition hover:border-slate-400 hover:bg-slate-800/70"
@@ -268,32 +237,38 @@ export default function App() {
             >
               ↻
             </button>
-            <Link to="/settings" className="rounded-md p-2 transition hover:bg-slate-800/70" title="Settings">
-              ⚙
-            </Link>
           </div>
         </div>
       </nav>
 
-      <Routes>
-        <Route
-          path="/"
-          element={
-            <StatusDashboard
-              pages={pages}
-              refreshToken={refreshToken}
-              onPagesChange={handlePagesChange}
-              onLastRefreshChange={setLastRefreshAt}
-              onOverallIndicatorChange={setOverallIndicator}
-            />
-          }
-        />
-        <Route path="/settings" element={<SettingsPage pages={pages} onPagesChange={handlePagesChange} />} />
-        <Route
-          path="/settings-json"
-          element={<JsonImportExportPage pages={pages} onPagesChange={handlePagesChange} />}
-        />
-      </Routes>
+      <div className="flex-1">
+        <Routes>
+          <Route
+            path="/"
+            element={
+              <StatusDashboard
+                pages={pages}
+                refreshToken={refreshToken}
+                onPagesChange={handlePagesChange}
+                onOverallIndicatorChange={setOverallIndicator}
+              />
+            }
+          />
+          <Route path="/settings" element={<Navigate to="/" replace />} />
+          <Route
+            path="/settings-json"
+            element={<JsonImportExportPage pages={pages} onPagesChange={handlePagesChange} />}
+          />
+        </Routes>
+      </div>
+
+      <footer className="border-t border-slate-800/80 bg-[#0b1310]/80">
+        <div className="mx-auto flex w-full max-w-[1920px] items-center justify-end px-8 py-3 md:px-10">
+          <Link to="/settings-json" className="text-sm text-slate-400 transition hover:text-slate-200">
+            JSON Import/Export
+          </Link>
+        </div>
+      </footer>
     </div>
   )
 }

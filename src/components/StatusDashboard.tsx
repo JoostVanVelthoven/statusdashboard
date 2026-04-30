@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
 import { detectStatusPageProvider } from '../services/detectStatusPageProvider'
 import { fetchStatusPageStatus } from '../services/fetchStatusPageStatus'
 import { saveStatusPages } from '../services/localStorageStatusPages'
@@ -11,7 +10,6 @@ type StatusDashboardProps = {
   pages: StoredStatusPage[]
   refreshToken: number
   onPagesChange: (pages: StoredStatusPage[]) => void
-  onLastRefreshChange: (date: Date | null) => void
   onOverallIndicatorChange: (indicator: AtlassianIndicator) => void
 }
 
@@ -48,10 +46,8 @@ export function StatusDashboard({
   pages,
   refreshToken,
   onPagesChange,
-  onLastRefreshChange,
   onOverallIndicatorChange,
 }: StatusDashboardProps) {
-  const navigate = useNavigate()
   const [statusByPageId, setStatusByPageId] = useState<Record<string, RuntimeStatus>>({})
   const [isPolling, setIsPolling] = useState(false)
   const [quickUrl, setQuickUrl] = useState('')
@@ -61,7 +57,6 @@ export function StatusDashboard({
   const pollStatuses = useCallback(async () => {
     if (pages.length === 0) {
       setStatusByPageId({})
-      onLastRefreshChange(null)
       onOverallIndicatorChange('unknown')
       return
     }
@@ -128,9 +123,8 @@ export function StatusDashboard({
     })
 
     setIsPolling(false)
-    onLastRefreshChange(new Date())
     onOverallIndicatorChange(computedOverallIndicator)
-  }, [onLastRefreshChange, onOverallIndicatorChange, pages])
+  }, [onOverallIndicatorChange, pages])
 
   useEffect(() => {
     const kickoffId = window.setTimeout(() => {
@@ -210,6 +204,17 @@ export function StatusDashboard({
     await addPageFromUrl('https://www.githubstatus.com')
   }, [addPageFromUrl])
 
+  const handleQuickAddClick = useCallback(() => {
+    const rawUrl = window.prompt('Voer status page URL in', 'https://')
+    const nextUrl = rawUrl?.trim()
+
+    if (!nextUrl) {
+      return
+    }
+
+    void addPageFromUrl(nextUrl)
+  }, [addPageFromUrl])
+
   const cards = useMemo(
     () =>
       pages.map((page) => (
@@ -217,23 +222,31 @@ export function StatusDashboard({
           key={page.id}
           page={page}
           status={statusByPageId[page.id] ?? getDefaultStatus()}
-          onOpenSettings={() => navigate('/settings', { state: { editPageId: page.id } })}
         />
       )),
-    [navigate, pages, statusByPageId],
+    [pages, statusByPageId],
   )
 
   return (
-    <main className="mx-auto w-full max-w-[1920px] p-8 md:p-10">
-      <header className="mb-10 flex flex-col justify-between gap-6 xl:flex-row xl:items-end">
+    <main className="mx-auto w-full max-w-[1920px] p-6 md:p-8">
+      <header className="mb-8 flex flex-col justify-between gap-4 xl:flex-row xl:items-end">
         <div>
-          <h1 className="text-5xl font-semibold tracking-tight text-slate-100">Integration Status Monitor</h1>
-          <p className="mt-3 text-2xl text-slate-300">Environment monitoring • Operational real-time data</p>
+          <h1 className="text-4xl font-semibold tracking-tight text-slate-100">Integration Status Monitor</h1>
         </div>
-        <div className="flex items-center gap-4 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-emerald-300">
-          <span className="status-pulse h-3 w-3 rounded-full bg-emerald-300" aria-hidden="true" />
-          <span className="text-xl font-medium">System Online</span>
-          {isPolling ? <span className="text-sm text-emerald-200/80">(Refreshing...)</span> : null}
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            type="button"
+            onClick={handleQuickAddClick}
+            disabled={isAddingPage}
+            className="rounded-xl bg-emerald-400 px-4 py-2 text-sm font-semibold text-[#042416] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {isAddingPage ? 'Toevoegen...' : 'Voeg toe'}
+          </button>
+          <div className="flex items-center gap-3 rounded-xl border border-slate-500/30 bg-slate-800/30 px-4 py-2 text-slate-200">
+            <span className="status-pulse h-3 w-3 rounded-full bg-emerald-300" aria-hidden="true" />
+            <span className="text-lg font-medium">System Online</span>
+            {isPolling ? <span className="text-sm text-slate-300/80">(Refreshing...)</span> : null}
+          </div>
         </div>
       </header>
 
@@ -277,18 +290,12 @@ export function StatusDashboard({
             >
               + Add Sample GitHub Status
             </button>
-            <Link
-              to="/settings"
-              className="rounded-xl border border-slate-600 px-6 py-3 text-lg font-semibold text-slate-200 transition hover:border-slate-400"
-            >
-              Go to settings
-            </Link>
           </div>
           {addError ? <p className="mt-4 text-sm text-rose-300">{addError}</p> : null}
         </section>
       ) : (
         <>
-          <section className="grid grid-cols-1 gap-4 xl:grid-cols-3 2xl:grid-cols-4">{cards}</section>
+          <section className="grid grid-cols-1 gap-5 xl:grid-cols-3 2xl:grid-cols-4">{cards}</section>
           {addError ? <p className="mt-6 text-sm text-rose-300">{addError}</p> : null}
         </>
       )}
