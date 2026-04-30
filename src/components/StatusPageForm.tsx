@@ -12,7 +12,7 @@ type StatusPageFormProps = {
   submitLabel: string
   onSubmit: (values: StatusPageFormValues) => void
   onCancel?: () => void
-  onAddSample: () => void
+  onAddSample?: () => void
 }
 
 function validateHttpsUrl(value: string): string | null {
@@ -74,7 +74,7 @@ export function StatusPageForm({
           type="text"
           value={name}
           onChange={(event) => setName(event.target.value)}
-          placeholder="e.g. Cyso"
+          placeholder="e.g. GitHub Status"
           className="w-full rounded-xl border border-slate-600/80 bg-[#0f1714] px-4 py-3 text-lg text-slate-100 outline-none transition focus:border-emerald-400"
         />
       </div>
@@ -88,7 +88,7 @@ export function StatusPageForm({
           type="url"
           value={url}
           onChange={(event) => setUrl(event.target.value)}
-          placeholder="https://status.cyso.com"
+          placeholder="https://www.githubstatus.com"
           className="w-full rounded-xl border border-slate-600/80 bg-[#0f1714] px-4 py-3 text-lg text-slate-100 outline-none transition focus:border-emerald-400"
           required
         />
@@ -117,13 +117,15 @@ export function StatusPageForm({
             Cancel
           </button>
         ) : null}
-        <button
-          type="button"
-          onClick={onAddSample}
-          className="rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-4 py-3 text-sm font-semibold text-emerald-300 transition hover:bg-emerald-500/20"
-        >
-          + Add Sample Cyso Status
-        </button>
+        {onAddSample ? (
+          <button
+            type="button"
+            onClick={onAddSample}
+            className="rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-4 py-3 text-sm font-semibold text-emerald-300 transition hover:bg-emerald-500/20"
+          >
+            + Add Sample GitHub Status
+          </button>
+        ) : null}
       </div>
     </form>
   )

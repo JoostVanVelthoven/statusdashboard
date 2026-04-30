@@ -207,7 +207,7 @@ export function StatusDashboard({
   )
 
   const handleAddSample = useCallback(async () => {
-    await addPageFromUrl('https://status.cyso.com')
+    await addPageFromUrl('https://www.githubstatus.com')
   }, [addPageFromUrl])
 
   const cards = useMemo(
@@ -275,7 +275,7 @@ export function StatusDashboard({
               disabled={isAddingPage}
               className="rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-6 py-3 text-lg font-semibold text-emerald-300 transition hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              + Add Sample Cyso Status
+              + Add Sample GitHub Status
             </button>
             <Link
               to="/settings"
@@ -288,7 +288,7 @@ export function StatusDashboard({
         </section>
       ) : (
         <>
-          <section className="grid grid-cols-1 gap-6 xl:grid-cols-3">{cards}</section>
+          <section className="grid grid-cols-1 gap-4 xl:grid-cols-3 2xl:grid-cols-4">{cards}</section>
           {addError ? <p className="mt-6 text-sm text-rose-300">{addError}</p> : null}
         </>
       )}
