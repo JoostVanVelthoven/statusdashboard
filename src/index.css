@@ -59,6 +59,7 @@ body {
   --status-accent-rgb: 52, 211, 153;
   --status-accent-text: #74f0c8;
   position: relative;
+  z-index: 1;
   border: 1px solid rgba(var(--status-accent-rgb), 0.3);
   border-radius: 14px;
   padding: 14px;
@@ -84,6 +85,7 @@ body {
 }
 
 .status-card--interactive:hover {
+  z-index: 30;
   border-color: rgba(var(--status-accent-rgb), 0.46);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.06),
@@ -92,6 +94,7 @@ body {
 }
 
 .status-card--interactive:focus-within {
+  z-index: 30;
   border-color: rgba(var(--status-accent-rgb), 0.52);
   outline: none;
 }
