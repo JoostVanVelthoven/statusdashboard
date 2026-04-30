@@ -1,16 +1,18 @@
 import { createId } from '../utils/createId'
-import { normalizeStatusPageUrl } from './detectStatusPageProvider'
+import { detectStatusPageProvider, normalizeStatusPageUrl } from './detectStatusPageProvider'
 import type { ProviderDetectionResult, StoredStatusPage } from '../types/status'
 
-const SHARE_SCHEMA_VERSION = 2
+const SHARE_SCHEMA_VERSION = 3
 const BASE64_URL_PATTERN = /^[A-Za-z0-9_-]+$/
 const HTTPS_PREFIX = 'https://'
 
-type CompactSharedStatusPageEntry = [url: string, monitoredComponentIds: string]
+type SharedSelectionMode = 'i' | 'e'
+type CompactSharedStatusPageEntry = [url: string, mode: SharedSelectionMode, componentIdsCsv: string]
 type CompactDashboardSharePayload = [version: number, pages: CompactSharedStatusPageEntry[]]
 
 export interface SharedStatusPageEntry {
   url: string
+  selectionMode: SharedSelectionMode
   monitoredComponentIds: string[]
 }
 
@@ -21,6 +23,7 @@ export interface DashboardSharePayload {
 
 export interface ResolvedSharedStatusPage {
   detection: ProviderDetectionResult
+  selectionMode: SharedSelectionMode
   monitoredComponentIds: string[]
 }
 
@@ -93,9 +96,7 @@ async function gzipText(raw: string): Promise<string> {
       controller.close()
     },
   })
-  const compressedStream = inputStream.pipeThrough(
-    new globalThis.CompressionStream('gzip'),
-  )
+  const compressedStream = inputStream.pipeThrough(new globalThis.CompressionStream('gzip'))
   const compressedBuffer = await new Response(compressedStream).arrayBuffer()
 
   return encodeBytesBase64Url(new Uint8Array(compressedBuffer))
@@ -112,9 +113,7 @@ async function gunzipToText(encoded: string): Promise<string> {
       controller.close()
     },
   })
-  const decompressedStream = inputStream.pipeThrough(
-    new globalThis.DecompressionStream('gzip'),
-  )
+  const decompressedStream = inputStream.pipeThrough(new globalThis.DecompressionStream('gzip'))
   const decompressedBuffer = await new Response(decompressedStream).arrayBuffer()
 
   return new TextDecoder().decode(decompressedBuffer)
@@ -150,11 +149,7 @@ function areArraysEqual(a: string[], b: string[]): boolean {
 }
 
 function toCompactUrl(url: string): string {
-  if (url.startsWith(HTTPS_PREFIX)) {
-    return url.slice(HTTPS_PREFIX.length)
-  }
-
-  return url
+  return url.startsWith(HTTPS_PREFIX) ? url.slice(HTTPS_PREFIX.length) : url
 }
 
 function fromCompactUrl(compactUrl: string): string {
@@ -165,9 +160,46 @@ function fromCompactUrl(compactUrl: string): string {
   return `${HTTPS_PREFIX}${compactUrl}`
 }
 
+function chooseSelectionMode(
+  rawSelectedIds: string[],
+  availableComponentIds: string[],
+): SharedStatusPageEntry {
+  const selectedIds = deduplicateStringArray(rawSelectedIds)
+
+  if (selectedIds.length === 0 || availableComponentIds.length === 0) {
+    return {
+      url: '',
+      selectionMode: 'i',
+      monitoredComponentIds: selectedIds,
+    }
+  }
+
+  const availableSet = new Set(availableComponentIds)
+  const selectedKnown = selectedIds.filter((componentId) => availableSet.has(componentId))
+  const selectedKnownSet = new Set(selectedKnown)
+  const excludedIds = availableComponentIds.filter((componentId) => !selectedKnownSet.has(componentId))
+  const includeCsv = selectedIds.join(',')
+  const excludeCsv = excludedIds.join(',')
+
+  if (excludeCsv.length < includeCsv.length) {
+    return {
+      url: '',
+      selectionMode: 'e',
+      monitoredComponentIds: excludedIds,
+    }
+  }
+
+  return {
+    url: '',
+    selectionMode: 'i',
+    monitoredComponentIds: selectedIds,
+  }
+}
+
 function toCompactPayload(pages: SharedStatusPageEntry[]): CompactDashboardSharePayload {
   const entries: CompactSharedStatusPageEntry[] = pages.map((page) => [
     toCompactUrl(page.url),
+    page.selectionMode,
     deduplicateStringArray(page.monitoredComponentIds).join(','),
   ])
 
@@ -192,13 +224,17 @@ function fromCompactPayload(raw: unknown): DashboardSharePayload {
   const pagesByUrl = new Map<string, SharedStatusPageEntry>()
 
   for (const entry of pagesRaw) {
-    if (!Array.isArray(entry) || entry.length !== 2) {
+    if (!Array.isArray(entry) || entry.length !== 3) {
       continue
     }
 
-    const [compactUrl, monitoredComponentIdsRaw] = entry
+    const [compactUrl, modeRaw, monitoredComponentIdsRaw] = entry
 
     if (typeof compactUrl !== 'string') {
+      continue
+    }
+
+    if (modeRaw !== 'i' && modeRaw !== 'e') {
       continue
     }
 
@@ -207,22 +243,11 @@ function fromCompactPayload(raw: unknown): DashboardSharePayload {
       typeof monitoredComponentIdsRaw === 'string' && monitoredComponentIdsRaw.length > 0
         ? deduplicateStringArray(monitoredComponentIdsRaw.split(',').filter(Boolean))
         : []
-    const existing = pagesByUrl.get(normalizedUrl)
-
-    if (!existing) {
-      pagesByUrl.set(normalizedUrl, {
-        url: normalizedUrl,
-        monitoredComponentIds,
-      })
-      continue
-    }
 
     pagesByUrl.set(normalizedUrl, {
       url: normalizedUrl,
-      monitoredComponentIds: deduplicateStringArray([
-        ...existing.monitoredComponentIds,
-        ...monitoredComponentIds,
-      ]),
+      selectionMode: modeRaw,
+      monitoredComponentIds,
     })
   }
 
@@ -232,8 +257,8 @@ function fromCompactPayload(raw: unknown): DashboardSharePayload {
   }
 }
 
-export function buildDashboardSharePayload(pages: StoredStatusPage[]): DashboardSharePayload {
-  const pagesByUrl = new Map<string, SharedStatusPageEntry>()
+export async function buildDashboardSharePayload(pages: StoredStatusPage[]): Promise<DashboardSharePayload> {
+  const pagesByUrl = new Map<string, string[]>()
 
   for (const page of pages) {
     let normalizedUrl: string
@@ -244,49 +269,60 @@ export function buildDashboardSharePayload(pages: StoredStatusPage[]): Dashboard
       continue
     }
 
-    const existing = pagesByUrl.get(normalizedUrl)
-    const deduplicatedIds = deduplicateStringArray(page.monitoredComponentIds)
+    const existing = pagesByUrl.get(normalizedUrl) ?? []
+    pagesByUrl.set(
+      normalizedUrl,
+      deduplicateStringArray([...existing, ...deduplicateStringArray(page.monitoredComponentIds)]),
+    )
+  }
 
-    if (!existing) {
-      pagesByUrl.set(normalizedUrl, {
-        url: normalizedUrl,
-        monitoredComponentIds: deduplicatedIds,
-      })
+  const urls = Array.from(pagesByUrl.keys())
+  const detections = await Promise.allSettled(urls.map((url) => detectStatusPageProvider(url)))
+  const detectionByUrl = new Map<string, ProviderDetectionResult>()
+
+  for (const [index, detectionResult] of detections.entries()) {
+    if (detectionResult.status !== 'fulfilled') {
       continue
     }
 
-    pagesByUrl.set(normalizedUrl, {
-      url: normalizedUrl,
-      monitoredComponentIds: deduplicateStringArray([
-        ...existing.monitoredComponentIds,
-        ...deduplicatedIds,
-      ]),
-    })
+    detectionByUrl.set(urls[index], detectionResult.value)
   }
+
+  const sharedPages: SharedStatusPageEntry[] = urls.map((url) => {
+    const monitoredComponentIds = pagesByUrl.get(url) ?? []
+    const detection = detectionByUrl.get(url)
+    const modeSelection = chooseSelectionMode(
+      monitoredComponentIds,
+      detection?.availableComponents.map((component) => component.id) ?? [],
+    )
+
+    return {
+      url,
+      selectionMode: modeSelection.selectionMode,
+      monitoredComponentIds: modeSelection.monitoredComponentIds,
+    }
+  })
 
   return {
     v: SHARE_SCHEMA_VERSION,
-    pages: Array.from(pagesByUrl.values()),
+    pages: sharedPages,
   }
 }
 
 export async function encodeDashboardSharePayload(payload: DashboardSharePayload): Promise<string> {
-  const normalizedPayload = {
-    v: SHARE_SCHEMA_VERSION,
-    pages: payload.pages
-      .filter((page): page is SharedStatusPageEntry => typeof page.url === 'string')
-      .map((page) => ({
-        url: normalizeSharedPageUrl(page.url),
-        monitoredComponentIds: toStringArray(page.monitoredComponentIds),
-      })),
-  }
-  const compactPayload = toCompactPayload(normalizedPayload.pages)
+  const normalizedPages: SharedStatusPageEntry[] = payload.pages
+    .filter((page): page is SharedStatusPageEntry => typeof page.url === 'string')
+    .map((page) => ({
+      url: normalizeSharedPageUrl(page.url),
+      selectionMode: page.selectionMode === 'e' ? 'e' : 'i',
+      monitoredComponentIds: toStringArray(page.monitoredComponentIds),
+    }))
 
-  return gzipText(JSON.stringify(compactPayload))
+  return gzipText(JSON.stringify(toCompactPayload(normalizedPages)))
 }
 
 export async function buildDashboardShareHash(pages: StoredStatusPage[]): Promise<string> {
-  return encodeDashboardSharePayload(buildDashboardSharePayload(pages))
+  return encodeDashboardSharePayload(await buildDashboardSharePayload(pages))
 }
 
 export async function decodeDashboardSharePayload(
@@ -299,8 +335,7 @@ export async function decodeDashboardSharePayload(
   let parsed: unknown
 
   try {
-    const rawJson = await gunzipToText(encodedPayload)
-    parsed = JSON.parse(rawJson)
+    parsed = JSON.parse(await gunzipToText(encodedPayload))
   } catch {
     throw new Error('Share payload could not be decoded.')
   }
@@ -325,11 +360,7 @@ export async function parseDashboardShareHash(hash: string): Promise<DashboardSh
     ? rawHashValue.slice('share='.length)
     : rawHashValue
 
-  if (!payloadValue) {
-    return null
-  }
-
-  if (!BASE64_URL_PATTERN.test(payloadValue)) {
+  if (!payloadValue || !BASE64_URL_PATTERN.test(payloadValue)) {
     return null
   }
 
@@ -342,6 +373,23 @@ function normalizePageUrlForCompare(url: string): string {
   } catch {
     return url
   }
+}
+
+function resolveIncomingMonitoredComponentIds(
+  mode: SharedSelectionMode,
+  ids: string[],
+  availableComponentIds: string[],
+): string[] {
+  if (mode === 'e') {
+    if (availableComponentIds.length === 0) {
+      return []
+    }
+
+    const excluded = new Set(ids)
+    return availableComponentIds.filter((componentId) => !excluded.has(componentId))
+  }
+
+  return sanitizeMonitoredComponentIds(ids, new Set(availableComponentIds))
 }
 
 function mergeMonitoredComponentIds(
@@ -365,10 +413,12 @@ export function mergeResolvedSharedPages(
 
   for (const resolvedPage of resolvedPages) {
     const normalizedUrl = normalizePageUrlForCompare(resolvedPage.detection.baseUrl)
-    const availableComponentIds = new Set(
-      resolvedPage.detection.availableComponents.map((component) => component.id),
+    const availableComponentIds = resolvedPage.detection.availableComponents.map(
+      (component) => component.id,
     )
-    const incomingMonitoredComponentIds = sanitizeMonitoredComponentIds(
+    const availableSet = new Set(availableComponentIds)
+    const incomingMonitoredComponentIds = resolveIncomingMonitoredComponentIds(
+      resolvedPage.selectionMode,
       resolvedPage.monitoredComponentIds,
       availableComponentIds,
     )
@@ -399,7 +449,7 @@ export function mergeResolvedSharedPages(
     const mergedMonitoredComponentIds = mergeMonitoredComponentIds(
       existingPage.monitoredComponentIds,
       incomingMonitoredComponentIds,
-      availableComponentIds,
+      availableSet,
     )
     const shouldUpdate =
       existingPage.url !== normalizedUrl ||

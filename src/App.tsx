@@ -185,6 +185,7 @@ export default function App() {
         const resolvedPages = await Promise.all(
           payload.pages.map(async (page) => ({
             detection: await detectStatusPageProvider(page.url),
+            selectionMode: page.selectionMode,
             monitoredComponentIds: page.monitoredComponentIds,
           })),
         )

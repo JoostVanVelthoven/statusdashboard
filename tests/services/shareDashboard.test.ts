@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   buildDashboardSharePayload,
   decodeDashboardSharePayload,
@@ -6,7 +6,28 @@ import {
   mergeResolvedSharedPages,
   parseDashboardShareHash,
 } from '../../src/services/shareDashboard'
-import type { ProviderDetectionResult, StoredStatusPage } from '../../src/types/status'
+import type {
+  ProviderDetectionResult,
+  StoredStatusPage,
+  AtlassianStatusPayload,
+  AtlassianSummaryPayload,
+} from '../../src/types/status'
+
+type MockFetchResponse = {
+  ok: boolean
+  status: number
+  statusText: string
+  json: () => Promise<unknown>
+}
+
+function createJsonResponse(body: unknown, status = 200, statusText = 'OK'): MockFetchResponse {
+  return {
+    ok: status >= 200 && status < 300,
+    status,
+    statusText,
+    json: async () => body,
+  }
+}
 
 function createStoredPage(overrides: Partial<StoredStatusPage> = {}): StoredStatusPage {
   return {
@@ -40,13 +61,52 @@ function createDetectionResult(
   }
 }
 
+function mockStatusPageFetch(
+  fetchMock: ReturnType<typeof vi.fn>,
+  components: { id: string; name: string; status: string }[],
+) {
+  fetchMock.mockImplementation(async (input: string) => {
+    if (input.endsWith('/api/v2/status.json')) {
+      const payload: AtlassianStatusPayload = {
+        page: { name: 'Example Status' },
+        status: { indicator: 'none', description: 'All Systems Operational' },
+      }
+      return createJsonResponse(payload)
+    }
+
+    if (input.endsWith('/api/v2/summary.json')) {
+      const payload: AtlassianSummaryPayload = {
+        page: { name: 'Example Status' },
+        status: { indicator: 'none', description: 'All Systems Operational' },
+        components,
+      }
+      return createJsonResponse(payload)
+    }
+
+    throw new Error(`Unexpected URL: ${input}`)
+  })
+}
+
 describe('shareDashboard payload', () => {
+  const fetchMock = vi.fn()
+
+  beforeEach(() => {
+    vi.stubGlobal('fetch', fetchMock)
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    vi.restoreAllMocks()
+    fetchMock.mockReset()
+  })
+
   it('encodes and decodes a payload roundtrip', async () => {
     const payload = {
-      v: 2,
+      v: 3,
       pages: [
         {
           url: 'https://status.example.com',
+          selectionMode: 'i' as const,
           monitoredComponentIds: ['api', 'db'],
         },
       ],
@@ -59,50 +119,60 @@ describe('shareDashboard payload', () => {
   })
 
   it('parses a payload from hash-only value', async () => {
-    const payload = buildDashboardSharePayload([
-      createStoredPage({ monitoredComponentIds: ['api', 'api', 'db'] }),
-    ])
-    const encoded = await encodeDashboardSharePayload(payload)
-    const parsed = await parseDashboardShareHash(`#${encoded}`)
-
-    expect(parsed).toEqual({
-      v: 2,
+    const payload = {
+      v: 3,
       pages: [
         {
           url: 'https://status.example.com',
+          selectionMode: 'i' as const,
           monitoredComponentIds: ['api', 'db'],
         },
       ],
-    })
+    }
+    const encoded = await encodeDashboardSharePayload(payload)
+    const parsed = await parseDashboardShareHash(`#${encoded}`)
+
+    expect(parsed).toEqual(payload)
   })
 
-  it('creates shorter payloads than legacy json+base64 for large selections', async () => {
-    const componentIds = Array.from({ length: 35 }, (_, index) => `component-${index + 1}`)
-    const payload = {
-      v: 2,
-      pages: [
-        {
-          url: 'https://status.example.com',
-          monitoredComponentIds: componentIds,
-        },
-      ],
-    }
-    const legacyPayload = {
-      v: 1,
-      pages: [
-        {
-          url: 'https://status.example.com',
-          monitoredComponentIds: componentIds,
-        },
-      ],
-    }
-    const legacyEncoded = btoa(JSON.stringify(legacyPayload))
-      .replace(/\+/g, '-')
-      .replace(/\//g, '_')
-      .replace(/=+$/g, '')
-    const compactEncoded = await encodeDashboardSharePayload(payload)
+  it('uses include mode when only a few components are selected', async () => {
+    const components = Array.from({ length: 100 }, (_, index) => ({
+      id: `component-${index + 1}`,
+      name: `Component ${index + 1}`,
+      status: 'operational',
+    }))
+    mockStatusPageFetch(fetchMock, components)
+    const payload = await buildDashboardSharePayload([
+      createStoredPage({
+        monitoredComponentIds: ['component-1'],
+      }),
+    ])
 
-    expect(compactEncoded.length).toBeLessThan(legacyEncoded.length)
+    expect(payload.pages).toHaveLength(1)
+    expect(payload.pages[0].selectionMode).toBe('i')
+    expect(payload.pages[0].monitoredComponentIds).toEqual(['component-1'])
+  })
+
+  it('uses exclude mode when almost all components are selected', async () => {
+    const components = Array.from({ length: 100 }, (_, index) => ({
+      id: `component-${index + 1}`,
+      name: `Component ${index + 1}`,
+      status: 'operational',
+    }))
+    const selected = components
+      .map((component) => component.id)
+      .filter((componentId) => componentId !== 'component-100')
+
+    mockStatusPageFetch(fetchMock, components)
+    const payload = await buildDashboardSharePayload([
+      createStoredPage({
+        monitoredComponentIds: selected,
+      }),
+    ])
+
+    expect(payload.pages).toHaveLength(1)
+    expect(payload.pages[0].selectionMode).toBe('e')
+    expect(payload.pages[0].monitoredComponentIds).toEqual(['component-100'])
   })
 })
 
@@ -120,6 +190,7 @@ describe('mergeResolvedSharedPages', () => {
             { id: 'db', name: 'DB', status: 'operational' },
           ],
         }),
+        selectionMode: 'i',
         monitoredComponentIds: ['api', 'unknown', 'db'],
       },
     ])
@@ -146,6 +217,7 @@ describe('mergeResolvedSharedPages', () => {
           statusApiUrl: 'https://status.example.com/api/v2/status.json',
           summaryApiUrl: 'https://status.example.com/api/v2/summary.json',
         }),
+        selectionMode: 'i',
         monitoredComponentIds: ['db'],
       },
     ])
@@ -159,21 +231,22 @@ describe('mergeResolvedSharedPages', () => {
     expect(mergeResult.pages[0].monitoredComponentIds).toEqual(['api', 'db'])
   })
 
-  it('returns unchanged when share already matches existing state', () => {
-    const existing = createStoredPage({
-      monitoredComponentIds: ['api', 'db'],
-    })
-
-    const mergeResult = mergeResolvedSharedPages([existing], [
+  it('resolves exclude mode into selected list based on discovered components', () => {
+    const mergeResult = mergeResolvedSharedPages([], [
       {
-        detection: createDetectionResult(),
-        monitoredComponentIds: ['api', 'db'],
+        detection: createDetectionResult({
+          availableComponents: [
+            { id: 'api', name: 'API', status: 'operational' },
+            { id: 'db', name: 'DB', status: 'operational' },
+            { id: 'worker', name: 'Worker', status: 'operational' },
+          ],
+        }),
+        selectionMode: 'e',
+        monitoredComponentIds: ['worker'],
       },
     ])
 
-    expect(mergeResult.hasChanges).toBe(false)
-    expect(mergeResult.addedCount).toBe(0)
-    expect(mergeResult.updatedCount).toBe(0)
-    expect(mergeResult.pages).toEqual([existing])
+    expect(mergeResult.pages).toHaveLength(1)
+    expect(mergeResult.pages[0].monitoredComponentIds).toEqual(['api', 'db'])
   })
 })
