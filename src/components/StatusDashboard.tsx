@@ -631,17 +631,64 @@ export function StatusDashboard({
     setSelectedComponentIds((previous) => previous.filter((value) => !filteredIds.has(value)))
   }, [filteredComponents])
 
+  const [draggedPageId, setDraggedPageId] = useState<string | null>(null)
+
+  const handleDragStart = useCallback((pageId: string) => {
+    setDraggedPageId(pageId)
+  }, [])
+
+  const handleDragEnd = useCallback(() => {
+    setDraggedPageId(null)
+  }, [])
+
+  const handleDropOnPage = useCallback(
+    (targetPageId: string) => {
+      if (!draggedPageId || draggedPageId === targetPageId) {
+        return
+      }
+
+      const fromIndex = pages.findIndex((page) => page.id === draggedPageId)
+      const targetIndex = pages.findIndex((page) => page.id === targetPageId)
+
+      if (fromIndex === -1 || targetIndex === -1) {
+        return
+      }
+
+      const nextPages = [...pages]
+      const [movedPage] = nextPages.splice(fromIndex, 1)
+      nextPages.splice(targetIndex, 0, movedPage)
+
+      saveStatusPages(nextPages)
+      onPagesChange(nextPages)
+      setDraggedPageId(null)
+    },
+    [draggedPageId, onPagesChange, pages],
+  )
+
   const cards = useMemo(
     () =>
       pages.map((page) => (
-        <StatusCard
+        <div
           key={page.id}
-          page={page}
-          status={statusByPageId[page.id] ?? getDefaultStatus()}
-          onOpenSettings={() => handleCardClick(page.id)}
-        />
+          draggable
+          onDragStart={() => handleDragStart(page.id)}
+          onDragEnd={handleDragEnd}
+          onDragOver={(event) => {
+            event.preventDefault()
+          }}
+          onDrop={() => handleDropOnPage(page.id)}
+          className={`cursor-grab active:cursor-grabbing ${
+            draggedPageId === page.id ? 'opacity-60' : ''
+          }`}
+        >
+          <StatusCard
+            page={page}
+            status={statusByPageId[page.id] ?? getDefaultStatus()}
+            onOpenSettings={() => handleCardClick(page.id)}
+          />
+        </div>
       )),
-    [handleCardClick, pages, statusByPageId],
+    [draggedPageId, handleCardClick, handleDragEnd, handleDragStart, handleDropOnPage, pages, statusByPageId],
   )
 
   return (
