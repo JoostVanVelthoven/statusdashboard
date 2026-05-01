@@ -60,6 +60,27 @@ function buildFaviconDataUrl(color: string): string {
   return `data:image/svg+xml,${encodeURIComponent(svg)}`
 }
 
+
+function buildShareDashboardNamesText(pages: StoredStatusPage[]): string {
+  const names = pages
+    .map((page) => page.name.trim())
+    .filter((name) => name.length > 0)
+
+  if (names.length === 0) {
+    return 'this dashboard'
+  }
+
+  if (names.length === 1) {
+    return names[0]
+  }
+
+  if (names.length === 2) {
+    return `${names[0]} and ${names[1]}`
+  }
+
+  return `${names.slice(0, -1).join(', ')}, and ${names[names.length - 1]}`
+}
+
 function clearWindowHash(): void {
   if (typeof window === 'undefined') {
     return
@@ -149,11 +170,14 @@ export default function App() {
         return
       }
 
+      const dashboardNamesText = buildShareDashboardNamesText(pages)
+      const shareText = `Want to know if ${dashboardNamesText} are sailing smooth? Use this dashboard: ${shareLink}`
+
       if (option === 'native') {
         if (hasNativeShare) {
           await navigator.share({
             title: 'Status Dashboard',
-            text: 'Check this shared status dashboard',
+            text: shareText,
             url: shareLink,
           })
           return
@@ -164,13 +188,13 @@ export default function App() {
       }
 
       if (option === 'email') {
-        const mailtoUrl = `mailto:?subject=${encodeURIComponent('Shared Status Dashboard')}&body=${encodeURIComponent(`Check this status dashboard: ${shareLink}`)}`
+        const mailtoUrl = `mailto:?subject=${encodeURIComponent('Shared Status Dashboard')}&body=${encodeURIComponent(shareText)}`
         window.location.href = mailtoUrl
         return
       }
 
       if (option === 'whatsapp') {
-        const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(`Check this status dashboard: ${shareLink}`)}`
+        const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(shareText)}`
         window.open(whatsappUrl, '_blank', 'noopener,noreferrer')
         return
       }
