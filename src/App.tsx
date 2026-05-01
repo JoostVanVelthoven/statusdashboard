@@ -348,7 +348,7 @@ export default function App() {
 
               {isShareMenuOpen ? (
                 <div
-                  className="absolute right-0 mt-2 w-64 overflow-hidden rounded-md border border-slate-700 bg-[#101e18] shadow-lg"
+                  className="absolute right-0 mt-2 w-64 max-h-[min(20rem,calc(100vh-6rem))] overflow-y-auto overflow-x-hidden rounded-md border border-slate-700 bg-[#101e18] shadow-lg"
                   role="menu"
                 >
                   {shareOptions.map((option) => (
