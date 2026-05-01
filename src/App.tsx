@@ -52,10 +52,10 @@ function getMonitorChromeState(indicator: AtlassianIndicator): MonitorChromeStat
 }
 
 function buildFaviconDataUrl(color: string): string {
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <rect width="64" height="64" rx="14" fill="#0b1220"/>
-  <circle cx="32" cy="32" r="20" fill="${color}" />
-  <circle cx="32" cy="32" r="10" fill="#0b1220" />
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <rect width="100" height="100" rx="22" fill="#020617"/>
+  <rect x="28" y="30" width="10" height="40" rx="3" fill="#10b981"/>
+  <circle cx="65" cy="50" r="14" fill="${color}"/>
 </svg>`
   return `data:image/svg+xml,${encodeURIComponent(svg)}`
 }
@@ -327,7 +327,12 @@ export default function App() {
       <nav className="sticky top-0 z-50 border-b border-slate-800/80 bg-[#0a1612]/90 shadow-md shadow-black/20 backdrop-blur">
         <div className="mx-auto flex w-full max-w-[1920px] flex-col gap-3 px-4 py-4 sm:px-6 md:flex-row md:items-center md:justify-between md:px-10">
           <div className="flex items-center gap-8">
-            <div className="flex items-center gap-4 md:gap-6">
+            <div className="flex items-center gap-3 md:gap-4">
+              <svg className="h-8 w-8" viewBox="0 0 100 100" aria-hidden="true">
+                <rect width="100" height="100" rx="22" fill="#020617" />
+                <rect x="28" y="30" width="10" height="40" rx="3" fill="#10b981" />
+                <circle cx="65" cy="50" r="14" fill="#34d399" />
+              </svg>
               <NavLink to="/" label="Dashboard" isActive={isDashboardRoute} />
             </div>
           </div>
