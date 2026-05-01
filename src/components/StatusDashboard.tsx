@@ -648,9 +648,9 @@ export function StatusDashboard({
     <main className="mx-auto w-full max-w-[1920px] p-6 md:p-8">
       <header className="mb-8 flex flex-col justify-between gap-4 xl:flex-row xl:items-end">
         <div>
-          <h1 className="text-4xl font-semibold tracking-tight text-slate-100">Integration Status Monitor</h1>
+          <h1 className="text-3xl font-semibold tracking-tight text-slate-100 sm:text-4xl">Integration Status Monitor</h1>
         </div>
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex w-full flex-wrap items-center gap-3 xl:w-auto xl:justify-end">
           <button
             type="button"
             onClick={handleQuickAddClick}
@@ -659,10 +659,10 @@ export function StatusDashboard({
           >
             {isPreparingAddFlow || isAddingPage ? 'Adding...' : 'Add'}
           </button>
-          <div className="flex items-center gap-3 rounded-xl border border-slate-500/30 bg-slate-800/30 px-4 py-2 text-slate-200">
+          <div className="flex min-w-0 flex-1 items-center gap-3 rounded-xl border border-slate-500/30 bg-slate-800/30 px-4 py-2 text-slate-200 xl:flex-none">
             <span className="status-pulse h-3 w-3 rounded-full bg-emerald-300" aria-hidden="true" />
-            <span className="text-lg font-medium">System Online</span>
-            {isPolling ? <span className="text-sm text-slate-300/80">(Refreshing...)</span> : null}
+            <span className="truncate text-base font-medium sm:text-lg">System Online</span>
+            {isPolling ? <span className="shrink-0 text-sm text-slate-300/80">(Refreshing...)</span> : null}
           </div>
         </div>
       </header>
