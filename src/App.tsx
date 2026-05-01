@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { StatusDashboard } from './components/StatusDashboard'
 import { loadStatusPages, saveStatusPages } from './services/localStorageStatusPages'
@@ -10,6 +10,10 @@ import {
 import { detectStatusPageProvider } from './services/detectStatusPageProvider'
 import { JsonImportExportPage } from './pages/JsonImportExportPage'
 import type { AtlassianIndicator, StoredStatusPage } from './types/status'
+
+
+
+type ShareOption = 'copy' | 'native' | 'email' | 'whatsapp' | 'slack'
 
 type MonitorChromeState = {
   color: string
@@ -96,34 +100,121 @@ export default function App() {
     saveStatusPages(nextPages)
   }, [])
 
-  const handleShareDashboard = useCallback(async () => {
-    if (pages.length === 0) {
-      return
+  const [isShareMenuOpen, setIsShareMenuOpen] = useState(false)
+  const shareMenuRef = useRef<HTMLDivElement | null>(null)
+  const hasNativeShare = typeof navigator !== 'undefined' && typeof navigator.share === 'function'
+  const shareOptions = useMemo(() => {
+    const options: { key: ShareOption; label: string }[] = [
+      { key: 'copy', label: 'Copy link' },
+      { key: 'email', label: 'Email' },
+      { key: 'whatsapp', label: 'WhatsApp' },
+      { key: 'slack', label: 'Open Slack' },
+    ]
+
+    if (hasNativeShare) {
+      options.splice(1, 0, { key: 'native', label: 'Share via phone' })
     }
 
-    try {
-      const hashPayload = await buildDashboardShareHash(pages)
-      const shareUrl = new URL(window.location.href)
-      shareUrl.pathname = '/'
-      shareUrl.search = ''
-      shareUrl.hash = hashPayload
-      const shareLink = shareUrl.toString()
+    return options
+  }, [hasNativeShare])
 
-      if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
-        await navigator.clipboard.writeText(shareLink)
+  const buildRawDashboardLink = useCallback(() => {
+    const shareUrl = new URL(window.location.href)
+    shareUrl.pathname = '/'
+    shareUrl.search = ''
+    shareUrl.hash = ''
+    return shareUrl.toString()
+  }, [])
+
+  const buildShareLink = useCallback(async () => {
+    const hashPayload = await buildDashboardShareHash(pages)
+    const shareUrl = new URL(window.location.href)
+    shareUrl.pathname = '/'
+    shareUrl.search = ''
+    shareUrl.hash = hashPayload
+    return shareUrl.toString()
+  }, [pages])
+
+  const handleShareDashboard = useCallback(async (option: ShareOption) => {
+    try {
+      const shareLink = pages.length === 0 ? buildRawDashboardLink() : await buildShareLink()
+
+      if (option === 'copy') {
+        if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+          await navigator.clipboard.writeText(shareLink)
+          return
+        }
+
+        window.prompt('Copy this dashboard share link:', shareLink)
         return
       }
 
-      window.prompt('Copy this dashboard share link:', shareLink)
+      if (option === 'native') {
+        if (hasNativeShare) {
+          await navigator.share({
+            title: 'Status Dashboard',
+            text: 'Check this shared status dashboard',
+            url: shareLink,
+          })
+          return
+        }
+
+        window.prompt('Native share is not supported here. Copy this link:', shareLink)
+        return
+      }
+
+      if (option === 'email') {
+        const mailtoUrl = `mailto:?subject=${encodeURIComponent('Shared Status Dashboard')}&body=${encodeURIComponent(`Check this status dashboard: ${shareLink}`)}`
+        window.location.href = mailtoUrl
+        return
+      }
+
+      if (option === 'whatsapp') {
+        const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(`Check this status dashboard: ${shareLink}`)}`
+        window.open(whatsappUrl, '_blank', 'noopener,noreferrer')
+        return
+      }
+
+      if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+        await navigator.clipboard.writeText(shareLink)
+      }
+
+      window.open('slack://open', '_blank', 'noopener,noreferrer')
+      window.open('https://app.slack.com/client', '_blank', 'noopener,noreferrer')
     } catch (error) {
       console.error('[App] share dashboard failed', error)
     }
-  }, [pages])
+  }, [buildRawDashboardLink, buildShareLink, hasNativeShare, pages.length])
 
   useEffect(() => {
     pagesRef.current = pages
   }, [pages])
 
+  useEffect(() => {
+    if (!isShareMenuOpen) {
+      return
+    }
+
+    const handleClickOutside = (event: MouseEvent) => {
+      if (shareMenuRef.current && !shareMenuRef.current.contains(event.target as Node)) {
+        setIsShareMenuOpen(false)
+      }
+    }
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setIsShareMenuOpen(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    document.addEventListener('keydown', handleEscape)
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+      document.removeEventListener('keydown', handleEscape)
+    }
+  }, [isShareMenuOpen])
   useEffect(() => {
     const rawHash = location.hash.trim()
 
@@ -219,16 +310,40 @@ export default function App() {
 
           <div className="flex items-center gap-4 text-slate-300">
             <span className="hidden text-lg md:block">Refresh rate: 60s</span>
-            <button
-              type="button"
-              className="rounded-md border border-slate-600 px-3 py-1 text-sm font-semibold text-slate-200 transition hover:border-slate-400 hover:bg-slate-800/70"
-              onClick={() => {
-                void handleShareDashboard()
-              }}
-              title="Share dashboard"
-            >
-              Share dashboard
-            </button>
+            <div className="relative" ref={shareMenuRef}>
+              <button
+                type="button"
+                className="rounded-md border border-slate-600 px-3 py-1 text-sm font-semibold text-slate-200 transition hover:border-slate-400 hover:bg-slate-800/70"
+                onClick={() => setIsShareMenuOpen((current) => !current)}
+                title="Share dashboard"
+                aria-haspopup="menu"
+                aria-expanded={isShareMenuOpen}
+              >
+                Share dashboard ▾
+              </button>
+
+              {isShareMenuOpen ? (
+                <div
+                  className="absolute right-0 mt-2 w-64 overflow-hidden rounded-md border border-slate-700 bg-[#101e18] shadow-lg"
+                  role="menu"
+                >
+                  {shareOptions.map((option) => (
+                    <button
+                      key={option.key}
+                      type="button"
+                      className="block w-full px-4 py-2 text-left text-sm text-slate-100 transition hover:bg-slate-800/80"
+                      role="menuitem"
+                      onClick={() => {
+                        setIsShareMenuOpen(false)
+                        void handleShareDashboard(option.key)
+                      }}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+            </div>
             <button
               type="button"
               className="rounded-md p-2 transition hover:bg-slate-800/70"
