@@ -74,7 +74,7 @@ function NavLink({ to, label, isActive }: { to: string; label: string; isActive:
   return (
     <Link
       to={to}
-      className={`border-b-2 pb-1 text-2xl transition ${
+      className={`border-b-2 pb-1 text-xl transition md:text-2xl ${
         isActive
           ? 'border-emerald-400 text-emerald-300'
           : 'border-transparent text-slate-400 hover:text-slate-200'
@@ -301,19 +301,19 @@ export default function App() {
   return (
     <div className="flex min-h-screen flex-col bg-[#101512] text-slate-100">
       <nav className="sticky top-0 z-50 border-b border-slate-800/80 bg-[#0a1612]/90 shadow-md shadow-black/20 backdrop-blur">
-        <div className="mx-auto flex w-full max-w-[1920px] items-center justify-between px-8 py-4 md:px-10">
+        <div className="mx-auto flex w-full max-w-[1920px] flex-col gap-3 px-4 py-4 sm:px-6 md:flex-row md:items-center md:justify-between md:px-10">
           <div className="flex items-center gap-8">
             <div className="flex items-center gap-4 md:gap-6">
               <NavLink to="/" label="Dashboard" isActive={isDashboardRoute} />
             </div>
           </div>
 
-          <div className="flex items-center gap-4 text-slate-300">
-            <span className="hidden text-lg md:block">Refresh rate: 60s</span>
+          <div className="flex w-full items-center justify-between gap-2 text-slate-300 md:w-auto md:justify-end md:gap-4">
+            <span className="hidden text-lg lg:block">Refresh rate: 60s</span>
             <div className="relative" ref={shareMenuRef}>
               <button
                 type="button"
-                className="rounded-md border border-slate-600 px-3 py-1 text-sm font-semibold text-slate-200 transition hover:border-slate-400 hover:bg-slate-800/70"
+                className="rounded-md border border-slate-600 px-3 py-2 text-sm font-semibold text-slate-200 transition hover:border-slate-400 hover:bg-slate-800/70"
                 onClick={() => setIsShareMenuOpen((current) => !current)}
                 title="Share dashboard"
                 aria-haspopup="menu"
