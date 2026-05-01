@@ -102,16 +102,29 @@ export default function App() {
 
   const [isShareMenuOpen, setIsShareMenuOpen] = useState(false)
   const shareMenuRef = useRef<HTMLDivElement | null>(null)
-  const shareOptions = useMemo(
-    () => [
-      { key: 'copy' as const, label: 'Copy link' },
-      { key: 'native' as const, label: 'Share via iPhone screen' },
-      { key: 'email' as const, label: 'Email' },
-      { key: 'whatsapp' as const, label: 'WhatsApp' },
-      { key: 'slack' as const, label: 'Open Slack' },
-    ],
-    [],
-  )
+  const hasNativeShare = typeof navigator !== 'undefined' && typeof navigator.share === 'function'
+  const shareOptions = useMemo(() => {
+    const options: { key: ShareOption; label: string }[] = [
+      { key: 'copy', label: 'Copy link' },
+      { key: 'email', label: 'Email' },
+      { key: 'whatsapp', label: 'WhatsApp' },
+      { key: 'slack', label: 'Open Slack' },
+    ]
+
+    if (hasNativeShare) {
+      options.splice(1, 0, { key: 'native', label: 'Share via phone' })
+    }
+
+    return options
+  }, [hasNativeShare])
+
+  const buildRawDashboardLink = useCallback(() => {
+    const shareUrl = new URL(window.location.href)
+    shareUrl.pathname = '/'
+    shareUrl.search = ''
+    shareUrl.hash = ''
+    return shareUrl.toString()
+  }, [])
 
   const buildShareLink = useCallback(async () => {
     const hashPayload = await buildDashboardShareHash(pages)
@@ -123,12 +136,8 @@ export default function App() {
   }, [pages])
 
   const handleShareDashboard = useCallback(async (option: ShareOption) => {
-    if (pages.length === 0) {
-      return
-    }
-
     try {
-      const shareLink = await buildShareLink()
+      const shareLink = pages.length === 0 ? buildRawDashboardLink() : await buildShareLink()
 
       if (option === 'copy') {
         if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
@@ -141,7 +150,7 @@ export default function App() {
       }
 
       if (option === 'native') {
-        if (navigator.share) {
+        if (hasNativeShare) {
           await navigator.share({
             title: 'Status Dashboard',
             text: 'Check this shared status dashboard',
@@ -175,7 +184,7 @@ export default function App() {
     } catch (error) {
       console.error('[App] share dashboard failed', error)
     }
-  }, [buildShareLink, pages.length])
+  }, [buildRawDashboardLink, buildShareLink, hasNativeShare, pages.length])
 
   useEffect(() => {
     pagesRef.current = pages
