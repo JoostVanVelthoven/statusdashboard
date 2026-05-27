@@ -149,11 +149,10 @@ export function StatusDashboard({
     })
 
     const result = await Promise.allSettled(pages.map((page) => fetchStatusPageStatus(page)))
-    let computedOverallIndicator: AtlassianIndicator = 'unknown'
+    const fallbackTimestamp = new Date().toISOString()
 
     setStatusByPageId((previous) => {
       const next = { ...previous }
-      const fallbackTimestamp = new Date().toISOString()
 
       pages.forEach((page, index) => {
         const current = previous[page.id] ?? getDefaultStatus()
@@ -186,13 +185,17 @@ export function StatusDashboard({
         }
       })
 
-      computedOverallIndicator = pages.reduce<AtlassianIndicator>((current, page) => {
-        const nextIndicator = next[page.id]?.indicator ?? 'unknown'
-        return indicatorSeverity(nextIndicator) > indicatorSeverity(current) ? nextIndicator : current
-      }, 'unknown')
-
       return next
     })
+
+    const computedOverallIndicator = result.reduce<AtlassianIndicator>((current, pageResult) => {
+      const nextIndicator =
+        pageResult.status === 'fulfilled'
+          ? pageResult.value.indicator
+          : current
+
+      return indicatorSeverity(nextIndicator) > indicatorSeverity(current) ? nextIndicator : current
+    }, 'unknown')
 
     setIsPolling(false)
     onOverallIndicatorChange(computedOverallIndicator)

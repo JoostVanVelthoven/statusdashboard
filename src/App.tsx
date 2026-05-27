@@ -33,10 +33,14 @@ function getMonitorChromeState(indicator: AtlassianIndicator): MonitorChromeStat
         title: 'All systems operational',
       }
     case 'minor':
-    case 'major':
       return {
         color: '#f59e0b',
         title: 'Service degradation detected',
+      }
+    case 'major':
+      return {
+        color: '#f97316',
+        title: 'Major outage detected',
       }
     case 'critical':
       return {
