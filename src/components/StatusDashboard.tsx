@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
 import { detectStatusPageProvider } from '../services/detectStatusPageProvider'
 import { fetchStatusPageStatus } from '../services/fetchStatusPageStatus'
 import { saveStatusPages } from '../services/localStorageStatusPages'
@@ -12,6 +12,10 @@ import type {
   StatusPageComponentOption,
   StoredStatusPage,
 } from '../types/status'
+
+export type StatusDashboardHandle = {
+  openAddPageDialog: () => void
+}
 
 type StatusDashboardProps = {
   pages: StoredStatusPage[]
@@ -74,14 +78,13 @@ function formatComponentStatus(status: string): string {
   return status.replace(/_/g, ' ')
 }
 
-export function StatusDashboard({
+export const StatusDashboard = forwardRef<StatusDashboardHandle, StatusDashboardProps>(function StatusDashboard({
   pages,
   refreshToken,
   onPagesChange,
   onOverallIndicatorChange,
-}: StatusDashboardProps) {
+}, ref) {
   const [statusByPageId, setStatusByPageId] = useState<Record<string, RuntimeStatus>>({})
-  const [isPolling, setIsPolling] = useState(false)
   const [addError, setAddError] = useState<string | null>(null)
   const [isAddingPage, setIsAddingPage] = useState(false)
   const [isPreparingAddFlow, setIsPreparingAddFlow] = useState(false)
@@ -133,7 +136,6 @@ export function StatusDashboard({
       return
     }
 
-    setIsPolling(true)
     setStatusByPageId((previous) => {
       const next = { ...previous }
 
@@ -197,7 +199,6 @@ export function StatusDashboard({
       return indicatorSeverity(nextIndicator) > indicatorSeverity(current) ? nextIndicator : current
     }, 'unknown')
 
-    setIsPolling(false)
     onOverallIndicatorChange(computedOverallIndicator)
   }, [onOverallIndicatorChange, pages])
 
@@ -603,6 +604,10 @@ export function StatusDashboard({
     setIsEditModalOpen(true)
   }, [])
 
+  useImperativeHandle(ref, () => ({
+    openAddPageDialog: handleQuickAddClick,
+  }), [handleQuickAddClick])
+
   const handleToggleComponentSelection = useCallback((componentId: string) => {
     setSelectedComponentIds((previous) =>
       previous.includes(componentId)
@@ -695,33 +700,11 @@ export function StatusDashboard({
   )
 
   return (
-    <main className="mx-auto w-full max-w-[1480px] px-4 py-6 sm:px-6 md:px-8 md:py-8">
-      <header className="mb-6 rounded-[1.35rem] border border-slate-700/50 bg-[#0d1713]/70 px-5 py-4 shadow-[0_16px_50px_rgba(0,0,0,0.18)] backdrop-blur sm:px-6 md:flex md:items-center md:justify-between md:gap-6">
-        <div className="min-w-0">
-          <p className="mb-1 text-xs font-semibold uppercase tracking-[0.18em] text-emerald-200/60">Live monitoring</p>
-          <h1 className="truncate text-2xl font-semibold tracking-tight text-slate-100 sm:text-3xl">Integration Status Monitor</h1>
-        </div>
-        <div className="mt-4 flex w-full flex-wrap items-center gap-3 md:mt-0 md:w-auto md:justify-end">
-          <button
-            type="button"
-            onClick={handleQuickAddClick}
-            disabled={isPreparingAddFlow || isAddingPage}
-            className="rounded-full bg-emerald-400 px-5 py-2 text-sm font-semibold text-[#042416] shadow-sm shadow-emerald-950/30 transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {isPreparingAddFlow || isAddingPage ? 'Adding...' : 'Add'}
-          </button>
-          <div className="flex min-w-0 flex-1 items-center gap-3 rounded-full border border-slate-500/25 bg-slate-900/35 px-4 py-2 text-slate-200 md:flex-none">
-            <span className="status-pulse h-3 w-3 rounded-full bg-emerald-300" aria-hidden="true" />
-            <span className="truncate text-base font-medium sm:text-lg">System Online</span>
-            {isPolling ? <span className="shrink-0 text-sm text-slate-300/80">(Refreshing...)</span> : null}
-          </div>
-        </div>
-      </header>
-
+    <main className="mx-auto w-full max-w-[1480px] px-4 py-4 sm:px-6 sm:py-6 md:px-8 md:py-8">
       {pages.length === 0 ? (
-        <section className="mx-auto mt-12 max-w-2xl rounded-2xl border border-dashed border-slate-500/60 bg-[#141d1a]/70 p-10 text-center">
-          <h2 className="text-4xl font-semibold text-slate-100">No monitoring configured</h2>
-          <p className="mx-auto mt-4 max-w-lg text-xl text-slate-300">
+        <section className="mx-auto mt-6 max-w-2xl rounded-2xl border border-dashed border-slate-500/60 bg-[#141d1a]/70 p-6 text-center sm:mt-12 sm:p-10">
+          <h2 className="text-3xl font-semibold text-slate-100 sm:text-4xl">No monitoring configured</h2>
+          <p className="mx-auto mt-4 max-w-lg text-lg text-slate-300 sm:text-xl">
             There are currently no active service monitors configured.
           </p>
           <div className="mt-4 flex flex-wrap justify-center gap-3">
@@ -729,7 +712,7 @@ export function StatusDashboard({
               type="button"
               onClick={handleQuickAddClick}
               disabled={isPreparingAddFlow || isAddingPage}
-              className="rounded-xl bg-emerald-400 px-6 py-3 text-lg font-semibold text-[#042416] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
+              className="w-full rounded-xl bg-emerald-400 px-6 py-3 text-base font-semibold text-[#042416] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto sm:text-lg"
             >
               Add status page
             </button>
@@ -739,7 +722,7 @@ export function StatusDashboard({
                 void handleAddSample()
               }}
               disabled={isAddingPage}
-              className="rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-6 py-3 text-lg font-semibold text-emerald-300 transition hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-60"
+              className="w-full rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-6 py-3 text-base font-semibold text-emerald-300 transition hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto sm:text-lg"
             >
               + Add Sample GitHub Status
             </button>
@@ -979,4 +962,4 @@ export function StatusDashboard({
       </dialog>
     </main>
   )
-}
+})
