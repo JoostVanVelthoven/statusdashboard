@@ -119,6 +119,8 @@ export default function App() {
   const processedShareHashesRef = useRef(new Set<string>())
 
   const isDashboardRoute = location.pathname === '/'
+  const effectiveOverallIndicator =
+    pages.length > 0 && overallIndicator === 'unknown' ? 'none' : overallIndicator
 
   const handlePagesChange = useCallback((nextPages: StoredStatusPage[]) => {
     setPages(nextPages)
@@ -212,7 +214,7 @@ export default function App() {
     } catch (error) {
       console.error('[App] share dashboard failed', error)
     }
-  }, [buildRawDashboardLink, buildShareLink, hasNativeShare, pages.length])
+  }, [buildRawDashboardLink, buildShareLink, hasNativeShare, pages])
 
   useEffect(() => {
     pagesRef.current = pages
@@ -299,13 +301,7 @@ export default function App() {
   }, [handlePagesChange, location.hash])
 
   useEffect(() => {
-    if (pages.length > 0 && overallIndicator === 'unknown') {
-      setOverallIndicator('none')
-    }
-  }, [overallIndicator, pages.length])
-
-  useEffect(() => {
-    const state = pages.length === 0 ? DEFAULT_CHROME_STATE : getMonitorChromeState(overallIndicator)
+    const state = pages.length === 0 ? DEFAULT_CHROME_STATE : getMonitorChromeState(effectiveOverallIndicator)
     document.title = state.title
     ;(window as Window & { title?: string }).title = state.title
 
@@ -313,7 +309,7 @@ export default function App() {
     const relValues = ['icon', 'shortcut icon']
 
     for (const rel of relValues) {
-      let faviconLink = document.querySelector<HTMLLinkElement>(`link[rel=\"${rel}\"]`)
+      let faviconLink = document.querySelector<HTMLLinkElement>(`link[rel="${rel}"]`)
 
       if (!faviconLink) {
         faviconLink = document.createElement('link')
@@ -324,7 +320,7 @@ export default function App() {
       faviconLink.type = 'image/svg+xml'
       faviconLink.href = faviconHref
     }
-  }, [overallIndicator, pages.length])
+  }, [effectiveOverallIndicator, pages.length])
 
   return (
     <div className="flex min-h-screen flex-col bg-[#101512] text-slate-100">

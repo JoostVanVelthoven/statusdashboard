@@ -680,7 +680,7 @@ export function StatusDashboard({
             event.preventDefault()
           }}
           onDrop={() => handleDropOnPage(page.id)}
-          className={`cursor-grab active:cursor-grabbing ${
+          className={`h-full cursor-grab active:cursor-grabbing ${
             draggedPageId === page.id ? 'opacity-60' : ''
           }`}
         >
@@ -695,21 +695,22 @@ export function StatusDashboard({
   )
 
   return (
-    <main className="mx-auto w-full max-w-[1920px] p-6 md:p-8">
-      <header className="mb-8 flex flex-col justify-between gap-4 xl:flex-row xl:items-end">
-        <div>
-          <h1 className="text-3xl font-semibold tracking-tight text-slate-100 sm:text-4xl">Integration Status Monitor</h1>
+    <main className="mx-auto w-full max-w-[1480px] px-4 py-6 sm:px-6 md:px-8 md:py-8">
+      <header className="mb-6 rounded-[1.35rem] border border-slate-700/50 bg-[#0d1713]/70 px-5 py-4 shadow-[0_16px_50px_rgba(0,0,0,0.18)] backdrop-blur sm:px-6 md:flex md:items-center md:justify-between md:gap-6">
+        <div className="min-w-0">
+          <p className="mb-1 text-xs font-semibold uppercase tracking-[0.18em] text-emerald-200/60">Live monitoring</p>
+          <h1 className="truncate text-2xl font-semibold tracking-tight text-slate-100 sm:text-3xl">Integration Status Monitor</h1>
         </div>
-        <div className="flex w-full flex-wrap items-center gap-3 xl:w-auto xl:justify-end">
+        <div className="mt-4 flex w-full flex-wrap items-center gap-3 md:mt-0 md:w-auto md:justify-end">
           <button
             type="button"
             onClick={handleQuickAddClick}
             disabled={isPreparingAddFlow || isAddingPage}
-            className="rounded-xl bg-emerald-400 px-4 py-2 text-sm font-semibold text-[#042416] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
+            className="rounded-full bg-emerald-400 px-5 py-2 text-sm font-semibold text-[#042416] shadow-sm shadow-emerald-950/30 transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {isPreparingAddFlow || isAddingPage ? 'Adding...' : 'Add'}
           </button>
-          <div className="flex min-w-0 flex-1 items-center gap-3 rounded-xl border border-slate-500/30 bg-slate-800/30 px-4 py-2 text-slate-200 xl:flex-none">
+          <div className="flex min-w-0 flex-1 items-center gap-3 rounded-full border border-slate-500/25 bg-slate-900/35 px-4 py-2 text-slate-200 md:flex-none">
             <span className="status-pulse h-3 w-3 rounded-full bg-emerald-300" aria-hidden="true" />
             <span className="truncate text-base font-medium sm:text-lg">System Online</span>
             {isPolling ? <span className="shrink-0 text-sm text-slate-300/80">(Refreshing...)</span> : null}
@@ -747,7 +748,7 @@ export function StatusDashboard({
         </section>
       ) : (
         <>
-          <section className="grid grid-cols-1 gap-5 xl:grid-cols-3 2xl:grid-cols-4">{cards}</section>
+          <section className="status-dashboard-grid">{cards}</section>
           {addError ? <p className="mt-6 text-sm text-rose-300">{addError}</p> : null}
         </>
       )}
