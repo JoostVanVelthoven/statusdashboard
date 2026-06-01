@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { StatusDashboard } from './components/StatusDashboard'
+import type { StatusDashboardHandle } from './components/StatusDashboard'
 import { loadStatusPages, saveStatusPages } from './services/localStorageStatusPages'
 import {
   buildDashboardShareHash,
@@ -116,6 +117,7 @@ export default function App() {
   const [overallIndicator, setOverallIndicator] = useState<AtlassianIndicator>('unknown')
   const location = useLocation()
   const pagesRef = useRef(pages)
+  const dashboardRef = useRef<StatusDashboardHandle | null>(null)
   const processedShareHashesRef = useRef(new Set<string>())
 
   const isDashboardRoute = location.pathname === '/'
@@ -339,6 +341,15 @@ export default function App() {
 
           <div className="flex w-full items-center justify-between gap-2 text-slate-300 md:w-auto md:justify-end md:gap-4">
             <span className="hidden text-lg lg:block">Refresh rate: 60s</span>
+            {isDashboardRoute ? (
+              <button
+                type="button"
+                className="rounded-md bg-emerald-400 px-3 py-2 text-sm font-semibold text-[#042416] shadow-sm shadow-emerald-950/30 transition hover:brightness-110"
+                onClick={() => dashboardRef.current?.openAddPageDialog()}
+              >
+                Add
+              </button>
+            ) : null}
             <div className="relative" ref={shareMenuRef}>
               <button
                 type="button"
@@ -391,6 +402,7 @@ export default function App() {
             path="/"
             element={
               <StatusDashboard
+                ref={dashboardRef}
                 pages={pages}
                 refreshToken={refreshToken}
                 onPagesChange={handlePagesChange}
