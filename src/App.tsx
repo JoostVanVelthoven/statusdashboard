@@ -327,7 +327,7 @@ export default function App() {
   return (
     <div className="flex min-h-screen flex-col bg-[#101512] text-slate-100">
       <nav className="sticky top-0 z-50 border-b border-slate-800/80 bg-[#0a1612]/90 shadow-md shadow-black/20 backdrop-blur">
-        <div className="mx-auto flex w-full max-w-[1920px] items-center justify-between gap-3 px-4 py-3 sm:px-6 md:px-10">
+        <div className="mx-auto flex w-full max-w-[1480px] items-center justify-between gap-3 px-4 py-3 sm:px-6 md:px-8">
           <div className="min-w-0 flex items-center gap-8">
             <div className="flex min-w-0 items-center gap-2 sm:gap-3 md:gap-4">
               <svg className="h-8 w-8 shrink-0" viewBox="0 0 100 100" aria-hidden="true">
