@@ -18,8 +18,8 @@ body {
   margin: 0;
   min-height: 100vh;
   background:
-    radial-gradient(1100px circle at 8% -24%, rgba(16, 185, 129, 0.12), transparent 48%),
-    radial-gradient(900px circle at 100% 0%, rgba(5, 40, 33, 0.35), transparent 58%),
+    radial-gradient(900px circle at 12% -18%, rgba(16, 185, 129, 0.09), transparent 46%),
+    radial-gradient(760px circle at 100% 0%, rgba(5, 40, 33, 0.24), transparent 56%),
     #101512;
 }
 
@@ -55,19 +55,37 @@ body {
   }
 }
 
+.status-dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 360px), 1fr));
+  gap: 16px;
+  align-items: stretch;
+}
+
+@media (min-width: 1280px) {
+  .status-dashboard-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 18px;
+  }
+}
+
 .status-card {
   --status-accent-rgb: 52, 211, 153;
   --status-accent-text: #74f0c8;
   position: relative;
-  border: 1px solid rgba(var(--status-accent-rgb), 0.22);
-  border-radius: 16px;
-  padding: 16px;
+  display: flex;
+  height: 100%;
+  min-height: 142px;
+  flex-direction: column;
+  border: 1px solid rgba(var(--status-accent-rgb), 0.18);
+  border-radius: 18px;
+  padding: 18px;
   background:
-    radial-gradient(120% 120% at 0% 0%, rgba(var(--status-accent-rgb), 0.09), transparent 56%),
-    linear-gradient(155deg, rgba(14, 29, 24, 0.94), rgba(10, 20, 17, 0.92));
+    linear-gradient(180deg, rgba(var(--status-accent-rgb), 0.055), transparent 52%),
+    linear-gradient(155deg, rgba(14, 29, 24, 0.92), rgba(9, 17, 15, 0.94));
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.03),
-    0 9px 20px rgba(0, 0, 0, 0.22);
+    inset 0 1px 0 rgba(255, 255, 255, 0.025),
+    0 10px 26px rgba(0, 0, 0, 0.16);
   transition: border-color 160ms ease, box-shadow 160ms ease;
 }
 
@@ -78,16 +96,16 @@ body {
   border-radius: inherit;
   pointer-events: none;
   background:
-    linear-gradient(90deg, rgba(var(--status-accent-rgb), 0.16), transparent 35%) top/100% 1px no-repeat,
-    linear-gradient(180deg, rgba(var(--status-accent-rgb), 0.16), transparent 35%) left/1px 100% no-repeat;
-  opacity: 0.45;
+    linear-gradient(90deg, rgba(var(--status-accent-rgb), 0.11), transparent 46%) top/100% 1px no-repeat,
+    linear-gradient(180deg, rgba(var(--status-accent-rgb), 0.1), transparent 38%) left/1px 100% no-repeat;
+  opacity: 0.35;
 }
 
 .status-card--interactive:hover {
   border-color: rgba(var(--status-accent-rgb), 0.34);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.05),
-    0 12px 22px rgba(0, 0, 0, 0.26);
+    0 12px 28px rgba(0, 0, 0, 0.2);
 }
 
 .status-card--interactive:focus-within {
@@ -124,14 +142,14 @@ body {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 10px;
+  gap: 14px;
+  margin-bottom: 14px;
 }
 
 .status-card__name {
   margin: 0;
   font-family: 'Space Grotesk', sans-serif;
-  font-size: 1.5rem;
+  font-size: 1.28rem;
   font-weight: 600;
   line-height: 1.1;
   letter-spacing: -0.01em;
@@ -141,8 +159,8 @@ body {
 .status-card__signal {
   display: grid;
   place-items: center;
-  width: 30px;
-  height: 30px;
+  width: 28px;
+  height: 28px;
   border-radius: 999px;
   border: 1px solid rgba(var(--status-accent-rgb), 0.26);
   background: rgba(var(--status-accent-rgb), 0.16);
@@ -150,8 +168,8 @@ body {
 }
 
 .status-card__signal-core {
-  width: 10px;
-  height: 10px;
+  width: 9px;
+  height: 9px;
   border-radius: 999px;
   background: rgba(var(--status-accent-rgb), 0.85);
 }
@@ -159,14 +177,15 @@ body {
 .status-card__body {
   display: flex;
   align-items: flex-start;
-  gap: 10px;
+  flex: 1 1 auto;
+  gap: 12px;
 }
 
 .status-card__rail {
   flex: 0 0 auto;
-  width: 4px;
-  height: 34px;
-  margin-top: 4px;
+  width: 3px;
+  height: 42px;
+  margin-top: 3px;
   border-radius: 999px;
   background: rgba(var(--status-accent-rgb), 0.38);
 }
@@ -179,20 +198,21 @@ body {
 .status-card__headline {
   margin: 0;
   font-family: 'Space Grotesk', sans-serif;
-  font-size: 1.65rem;
+  font-size: clamp(1.28rem, 1.1vw + 0.95rem, 1.5rem);
   font-weight: 600;
-  line-height: 1.05;
+  line-height: 1.12;
   color: var(--status-accent-text);
 }
 
 .status-card__description {
-  margin: 4px 0 0;
-  font-size: 1.02rem;
+  margin: 6px 0 0;
+  font-size: 0.96rem;
+  line-height: 1.35;
   color: #bfcbc6;
 }
 
 .status-card__chips {
-  margin-top: 7px;
+  margin-top: 10px;
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
@@ -203,8 +223,11 @@ body {
   border: 1px solid rgba(245, 158, 11, 0.2);
   background: rgba(245, 158, 11, 0.08);
   color: rgba(255, 236, 179, 0.85);
-  padding: 1px 8px;
+  max-width: 100%;
+  overflow: hidden;
+  padding: 2px 8px;
   font-size: 0.68rem;
+  text-overflow: ellipsis;
   line-height: 1.45;
   letter-spacing: 0.01em;
   white-space: nowrap;
@@ -216,7 +239,7 @@ body {
 }
 
 .status-card__planned-pill {
-  margin-top: 8px;
+  margin-top: 10px;
   display: inline-flex;
   align-items: center;
   gap: 6px;
