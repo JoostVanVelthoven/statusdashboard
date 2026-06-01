@@ -100,7 +100,7 @@ function NavLink({ to, label, isActive }: { to: string; label: string; isActive:
   return (
     <Link
       to={to}
-      className={`border-b-2 pb-1 text-xl transition md:text-2xl ${
+      className={`whitespace-nowrap border-b-2 pb-1 text-lg transition sm:text-xl md:text-2xl ${
         isActive
           ? 'border-emerald-400 text-emerald-300'
           : 'border-transparent text-slate-400 hover:text-slate-200'
@@ -327,10 +327,10 @@ export default function App() {
   return (
     <div className="flex min-h-screen flex-col bg-[#101512] text-slate-100">
       <nav className="sticky top-0 z-50 border-b border-slate-800/80 bg-[#0a1612]/90 shadow-md shadow-black/20 backdrop-blur">
-        <div className="mx-auto flex w-full max-w-[1920px] flex-col gap-3 px-4 py-4 sm:px-6 md:flex-row md:items-center md:justify-between md:px-10">
-          <div className="flex items-center gap-8">
-            <div className="flex items-center gap-3 md:gap-4">
-              <svg className="h-8 w-8" viewBox="0 0 100 100" aria-hidden="true">
+        <div className="mx-auto flex w-full max-w-[1920px] items-center justify-between gap-3 px-4 py-3 sm:px-6 md:px-10">
+          <div className="min-w-0 flex items-center gap-8">
+            <div className="flex min-w-0 items-center gap-2 sm:gap-3 md:gap-4">
+              <svg className="h-8 w-8 shrink-0" viewBox="0 0 100 100" aria-hidden="true">
                 <rect width="100" height="100" rx="22" fill="#020617" />
                 <rect x="28" y="30" width="10" height="40" rx="3" fill="#10b981" />
                 <circle cx="65" cy="50" r="14" fill="#34d399" />
@@ -339,7 +339,7 @@ export default function App() {
             </div>
           </div>
 
-          <div className="flex w-full items-center justify-between gap-2 text-slate-300 md:w-auto md:justify-end md:gap-4">
+          <div className="flex shrink-0 items-center justify-end gap-2 text-slate-300 md:gap-4">
             <span className="hidden text-lg lg:block">Refresh rate: 60s</span>
             {isDashboardRoute ? (
               <button
@@ -359,12 +359,13 @@ export default function App() {
                 aria-haspopup="menu"
                 aria-expanded={isShareMenuOpen}
               >
-                Share dashboard ▾
+                <span className="sm:hidden">Share ▾</span>
+                <span className="hidden sm:inline">Share dashboard ▾</span>
               </button>
 
               {isShareMenuOpen ? (
                 <div
-                  className="absolute left-0 mt-2 w-[min(16rem,calc(100vw-2rem))] max-h-[min(20rem,calc(100dvh-6rem))] overflow-y-auto overflow-x-hidden rounded-md border border-slate-700 bg-[#101e18] shadow-lg md:left-auto md:right-0 md:w-64"
+                  className="absolute right-0 mt-2 w-[min(16rem,calc(100vw-2rem))] max-h-[min(20rem,calc(100dvh-6rem))] overflow-y-auto overflow-x-hidden rounded-md border border-slate-700 bg-[#101e18] shadow-lg md:w-64"
                   role="menu"
                 >
                   {shareOptions.map((option) => (

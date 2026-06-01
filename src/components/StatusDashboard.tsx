@@ -700,11 +700,11 @@ export const StatusDashboard = forwardRef<StatusDashboardHandle, StatusDashboard
   )
 
   return (
-    <main className="mx-auto w-full max-w-[1480px] px-4 py-6 sm:px-6 md:px-8 md:py-8">
+    <main className="mx-auto w-full max-w-[1480px] px-4 py-4 sm:px-6 sm:py-6 md:px-8 md:py-8">
       {pages.length === 0 ? (
-        <section className="mx-auto mt-12 max-w-2xl rounded-2xl border border-dashed border-slate-500/60 bg-[#141d1a]/70 p-10 text-center">
-          <h2 className="text-4xl font-semibold text-slate-100">No monitoring configured</h2>
-          <p className="mx-auto mt-4 max-w-lg text-xl text-slate-300">
+        <section className="mx-auto mt-6 max-w-2xl rounded-2xl border border-dashed border-slate-500/60 bg-[#141d1a]/70 p-6 text-center sm:mt-12 sm:p-10">
+          <h2 className="text-3xl font-semibold text-slate-100 sm:text-4xl">No monitoring configured</h2>
+          <p className="mx-auto mt-4 max-w-lg text-lg text-slate-300 sm:text-xl">
             There are currently no active service monitors configured.
           </p>
           <div className="mt-4 flex flex-wrap justify-center gap-3">
@@ -712,7 +712,7 @@ export const StatusDashboard = forwardRef<StatusDashboardHandle, StatusDashboard
               type="button"
               onClick={handleQuickAddClick}
               disabled={isPreparingAddFlow || isAddingPage}
-              className="rounded-xl bg-emerald-400 px-6 py-3 text-lg font-semibold text-[#042416] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
+              className="w-full rounded-xl bg-emerald-400 px-6 py-3 text-base font-semibold text-[#042416] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto sm:text-lg"
             >
               Add status page
             </button>
@@ -722,7 +722,7 @@ export const StatusDashboard = forwardRef<StatusDashboardHandle, StatusDashboard
                 void handleAddSample()
               }}
               disabled={isAddingPage}
-              className="rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-6 py-3 text-lg font-semibold text-emerald-300 transition hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-60"
+              className="w-full rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-6 py-3 text-base font-semibold text-emerald-300 transition hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto sm:text-lg"
             >
               + Add Sample GitHub Status
             </button>
