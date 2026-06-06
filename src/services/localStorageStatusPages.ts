@@ -17,6 +17,19 @@ function toStringArray(value: unknown): string[] {
   return value.filter((entry): entry is string => typeof entry === 'string')
 }
 
+function isSafeHttpsUrl(value: unknown): value is string {
+  if (typeof value !== 'string') {
+    return false
+  }
+
+  try {
+    const url = new URL(value)
+    return url.protocol === 'https:' && !url.username && !url.password
+  } catch {
+    return false
+  }
+}
+
 function parseStoredPage(value: unknown): StoredStatusPage | null {
   if (typeof value !== 'object' || value === null) {
     return null
@@ -27,9 +40,10 @@ function parseStoredPage(value: unknown): StoredStatusPage | null {
   if (
     typeof candidate.id !== 'string' ||
     typeof candidate.name !== 'string' ||
-    typeof candidate.url !== 'string' ||
-    typeof candidate.provider !== 'string' ||
-    typeof candidate.statusApiUrl !== 'string' ||
+    !isSafeHttpsUrl(candidate.url) ||
+    candidate.provider !== 'atlassian-statuspage' ||
+    !isSafeHttpsUrl(candidate.statusApiUrl) ||
+    (typeof candidate.summaryApiUrl !== 'undefined' && !isSafeHttpsUrl(candidate.summaryApiUrl)) ||
     typeof candidate.createdAt !== 'string' ||
     typeof candidate.updatedAt !== 'string'
   ) {

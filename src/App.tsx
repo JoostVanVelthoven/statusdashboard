@@ -420,8 +420,11 @@ export default function App() {
       </div>
 
       <footer className="border-t border-slate-800/80 bg-[#0b1310]/80">
-        <div className="mx-auto flex w-full max-w-[1920px] items-center justify-end px-8 py-3 md:px-10">
-          <Link to="/settings-json" className="text-sm text-slate-400 transition hover:text-slate-200">
+        <div className="mx-auto flex w-full max-w-[1920px] flex-col gap-2 px-8 py-3 text-sm text-slate-400 sm:flex-row sm:items-center sm:justify-between md:px-10">
+          <p>
+            AI-assisted and open source under MIT for transparency and independent audit.
+          </p>
+          <Link to="/settings-json" className="transition hover:text-slate-200">
             JSON Import/Export
           </Link>
         </div>

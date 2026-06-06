@@ -9,8 +9,8 @@ export default {
         primary: '#4edea3',
       },
       fontFamily: {
-        sans: ['Inter', 'sans-serif'],
-        mono: ['Space Grotesk', 'ui-monospace', 'SFMono-Regular', 'monospace'],
+        sans: ['ui-sans-serif', 'system-ui', 'sans-serif'],
+        mono: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', 'monospace'],
       },
     },
   },

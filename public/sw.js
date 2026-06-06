@@ -1,4 +1,4 @@
-const CACHE_NAME = 'status-dashboard-v1'
+const CACHE_NAME = 'status-dashboard-v2'
 const APP_SHELL = ['/', '/index.html', '/manifest.webmanifest', '/favicon.svg', '/icons.svg']
 
 self.addEventListener('install', (event) => {
