@@ -1,7 +1,17 @@
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
 import { detectStatusPageProvider } from '../services/detectStatusPageProvider'
 import { fetchStatusPageStatus } from '../services/fetchStatusPageStatus'
+import {
+  acknowledgeIncident,
+  countUnacknowledgedIncidents,
+  reconcileIncidentAcknowledgements,
+} from '../services/incidentAcknowledgements'
+import type {
+  AcknowledgedIndicatorByPageId,
+  IndicatorByPageId,
+} from '../services/incidentAcknowledgements'
 import { saveStatusPages } from '../services/localStorageStatusPages'
+import { summarizeStatusIndicators } from '../services/summarizeStatusIndicators'
 import { createId } from '../utils/createId'
 import { StatusCard } from './StatusCard'
 import { StatusPageForm } from './StatusPageForm'
@@ -21,27 +31,12 @@ type StatusDashboardProps = {
   pages: StoredStatusPage[]
   refreshToken: number
   onPagesChange: (pages: StoredStatusPage[]) => void
-  onOverallIndicatorChange: (indicator: AtlassianIndicator) => void
+  onOverallIndicatorChange: (indicator: AtlassianIndicator, incidentPageCount: number) => void
 }
 
 type AddPageDraft = {
   detection: ProviderDetectionResult
   initialName: string
-}
-
-function indicatorSeverity(indicator: AtlassianIndicator): number {
-  switch (indicator) {
-    case 'none':
-      return 0
-    case 'minor':
-      return 1
-    case 'major':
-      return 2
-    case 'critical':
-      return 3
-    default:
-      return -1
-  }
 }
 
 function getDefaultStatus(): RuntimeStatus {
@@ -85,6 +80,8 @@ export const StatusDashboard = forwardRef<StatusDashboardHandle, StatusDashboard
   onOverallIndicatorChange,
 }, ref) {
   const [statusByPageId, setStatusByPageId] = useState<Record<string, RuntimeStatus>>({})
+  const acknowledgedIndicatorsRef = useRef<AcknowledgedIndicatorByPageId>({})
+  const indicatorsByPageIdRef = useRef<IndicatorByPageId>({})
   const [addError, setAddError] = useState<string | null>(null)
   const [isAddingPage, setIsAddingPage] = useState(false)
   const [isPreparingAddFlow, setIsPreparingAddFlow] = useState(false)
@@ -132,7 +129,9 @@ export const StatusDashboard = forwardRef<StatusDashboardHandle, StatusDashboard
   const pollStatuses = useCallback(async () => {
     if (pages.length === 0) {
       setStatusByPageId({})
-      onOverallIndicatorChange('unknown')
+      acknowledgedIndicatorsRef.current = {}
+      indicatorsByPageIdRef.current = {}
+      onOverallIndicatorChange('unknown', 0)
       return
     }
 
@@ -190,16 +189,24 @@ export const StatusDashboard = forwardRef<StatusDashboardHandle, StatusDashboard
       return next
     })
 
-    const computedOverallIndicator = result.reduce<AtlassianIndicator>((current, pageResult) => {
-      const nextIndicator =
+    const indicatorsByPageId = Object.fromEntries(
+      result.flatMap((pageResult) =>
         pageResult.status === 'fulfilled'
-          ? pageResult.value.indicator
-          : current
+          ? [[pageResult.value.pageId, pageResult.value.indicator] as const]
+          : [],
+      ),
+    )
+    const statusSummary = summarizeStatusIndicators(Object.values(indicatorsByPageId))
 
-      return indicatorSeverity(nextIndicator) > indicatorSeverity(current) ? nextIndicator : current
-    }, 'unknown')
-
-    onOverallIndicatorChange(computedOverallIndicator)
+    indicatorsByPageIdRef.current = indicatorsByPageId
+    acknowledgedIndicatorsRef.current = reconcileIncidentAcknowledgements(
+      acknowledgedIndicatorsRef.current,
+      indicatorsByPageId,
+    )
+    onOverallIndicatorChange(
+      statusSummary.overallIndicator,
+      countUnacknowledgedIncidents(indicatorsByPageId, acknowledgedIndicatorsRef.current),
+    )
   }, [onOverallIndicatorChange, pages])
 
   useEffect(() => {
@@ -639,6 +646,33 @@ export const StatusDashboard = forwardRef<StatusDashboardHandle, StatusDashboard
     setSelectedComponentIds((previous) => previous.filter((value) => !filteredIds.has(value)))
   }, [filteredComponents])
 
+  const handleAcknowledgeIncident = useCallback(
+    (pageId: string) => {
+      const indicator = indicatorsByPageIdRef.current[pageId]
+
+      if (!indicator) {
+        return
+      }
+
+      acknowledgedIndicatorsRef.current = acknowledgeIncident(
+        acknowledgedIndicatorsRef.current,
+        pageId,
+        indicator,
+      )
+      const statusSummary = summarizeStatusIndicators(
+        Object.values(indicatorsByPageIdRef.current),
+      )
+      onOverallIndicatorChange(
+        statusSummary.overallIndicator,
+        countUnacknowledgedIncidents(
+          indicatorsByPageIdRef.current,
+          acknowledgedIndicatorsRef.current,
+        ),
+      )
+    },
+    [onOverallIndicatorChange],
+  )
+
   const [draggedPageId, setDraggedPageId] = useState<string | null>(null)
 
   const handleDragStart = useCallback((pageId: string) => {
@@ -692,11 +726,21 @@ export const StatusDashboard = forwardRef<StatusDashboardHandle, StatusDashboard
           <StatusCard
             page={page}
             status={statusByPageId[page.id] ?? getDefaultStatus()}
+            onAcknowledgeIncident={() => handleAcknowledgeIncident(page.id)}
             onOpenSettings={() => handleCardClick(page.id)}
           />
         </div>
       )),
-    [draggedPageId, handleCardClick, handleDragEnd, handleDragStart, handleDropOnPage, pages, statusByPageId],
+    [
+      draggedPageId,
+      handleAcknowledgeIncident,
+      handleCardClick,
+      handleDragEnd,
+      handleDragStart,
+      handleDropOnPage,
+      pages,
+      statusByPageId,
+    ],
   )
 
   return (
