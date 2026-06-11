@@ -78,10 +78,11 @@ function formatMaintenanceWindow(start: string | null, end: string | null): stri
 type StatusCardProps = {
   page: StoredStatusPage
   status: RuntimeStatus
+  onAcknowledgeIncident?: () => void
   onOpenSettings?: () => void
 }
 
-export function StatusCard({ page, status, onOpenSettings }: StatusCardProps) {
+export function StatusCard({ page, status, onAcknowledgeIncident, onOpenSettings }: StatusCardProps) {
   const presentation = STATUS_PRESENTATION[status.indicator] ?? STATUS_PRESENTATION.unknown
   const isClickable = typeof onOpenSettings === 'function'
   const degradedPreview = status.degradedComponents.slice(0, 2)
@@ -99,6 +100,8 @@ export function StatusCard({ page, status, onOpenSettings }: StatusCardProps) {
     <article
       className={`status-card ${presentation.variantClass} ${isClickable ? 'status-card--interactive' : ''}`}
       onClick={onOpenSettings}
+      onFocus={onAcknowledgeIncident}
+      onMouseEnter={onAcknowledgeIncident}
       role={isClickable ? 'button' : undefined}
       tabIndex={isClickable ? 0 : undefined}
       onKeyDown={(event) => {
