@@ -23,9 +23,24 @@ self.addEventListener('activate', (event) => {
   )
 })
 
+async function getWindowClients() {
+  return self.clients.matchAll({ type: 'window', includeUncontrolled: true })
+}
+
 async function broadcastMessage(type) {
-  const clients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true })
+  const clients = await getWindowClients()
   clients.forEach((client) => client.postMessage({ type }))
+}
+
+async function reloadWindowClients(type) {
+  const clients = await getWindowClients()
+
+  await Promise.allSettled(
+    clients.map((client) => {
+      client.postMessage({ type })
+      return client.navigate(client.url)
+    }),
+  )
 }
 
 async function fetchLatestIndex({ notifyOnEtagChange }) {
@@ -67,7 +82,7 @@ async function recoverFromMissingReleaseAsset() {
     releaseRecoveryPromise = (async () => {
       const response = await fetchLatestIndex({ notifyOnEtagChange: false })
       if (response.ok) {
-        await broadcastMessage(MESSAGE_RELEASE_RELOAD)
+        await reloadWindowClients(MESSAGE_RELEASE_RELOAD)
       }
     })().finally(() => {
       releaseRecoveryPromise = undefined
