@@ -221,8 +221,9 @@ body {
 }
 
 .status-card__planned-pill {
+  display: flex;
+  width: fit-content;
   margin-top: 10px;
-  display: inline-flex;
   align-items: center;
   gap: 6px;
   border-radius: 999px;
@@ -246,7 +247,8 @@ body {
 .status-card__page-link {
   position: relative;
   z-index: 1;
-  display: inline-flex;
+  display: flex;
+  width: fit-content;
   align-items: center;
   gap: 5px;
   margin-top: 12px;
