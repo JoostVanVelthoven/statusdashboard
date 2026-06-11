@@ -173,8 +173,11 @@ body {
 }
 
 .status-card__content {
+  display: flex;
   min-width: 0;
   flex: 1 1 auto;
+  align-self: stretch;
+  flex-direction: column;
 }
 
 .status-card__headline {
@@ -251,7 +254,8 @@ body {
   width: fit-content;
   align-items: center;
   gap: 5px;
-  margin-top: 12px;
+  margin-top: auto;
+  padding-top: 12px;
   color: #a7f3d0;
   font-size: 0.78rem;
   font-weight: 600;
