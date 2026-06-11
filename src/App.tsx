@@ -9,6 +9,7 @@ import {
   parseDashboardShareHash,
 } from './services/shareDashboard'
 import { detectStatusPageProvider } from './services/detectStatusPageProvider'
+import { updateAppBadge } from './services/updateAppBadge'
 import { JsonImportExportPage } from './pages/JsonImportExportPage'
 import type { AtlassianIndicator, StoredStatusPage } from './types/status'
 
@@ -115,6 +116,7 @@ export default function App() {
   const [pages, setPages] = useState<StoredStatusPage[]>(() => loadStatusPages())
   const [refreshToken, setRefreshToken] = useState(0)
   const [overallIndicator, setOverallIndicator] = useState<AtlassianIndicator>('unknown')
+  const [incidentPageCount, setIncidentPageCount] = useState(0)
   const location = useLocation()
   const pagesRef = useRef(pages)
   const dashboardRef = useRef<StatusDashboardHandle | null>(null)
@@ -128,6 +130,14 @@ export default function App() {
     setPages(nextPages)
     saveStatusPages(nextPages)
   }, [])
+
+  const handleOverallIndicatorChange = useCallback(
+    (indicator: AtlassianIndicator, nextIncidentPageCount: number) => {
+      setOverallIndicator(indicator)
+      setIncidentPageCount(nextIncidentPageCount)
+    },
+    [],
+  )
 
   const [isShareMenuOpen, setIsShareMenuOpen] = useState(false)
   const shareMenuRef = useRef<HTMLDivElement | null>(null)
@@ -303,6 +313,12 @@ export default function App() {
   }, [handlePagesChange, location.hash])
 
   useEffect(() => {
+    void updateAppBadge(incidentPageCount).catch((error) => {
+      console.warn('[App] updating app badge failed', error)
+    })
+  }, [incidentPageCount])
+
+  useEffect(() => {
     const state = pages.length === 0 ? DEFAULT_CHROME_STATE : getMonitorChromeState(effectiveOverallIndicator)
     document.title = state.title
     ;(window as Window & { title?: string }).title = state.title
@@ -407,7 +423,7 @@ export default function App() {
                 pages={pages}
                 refreshToken={refreshToken}
                 onPagesChange={handlePagesChange}
-                onOverallIndicatorChange={setOverallIndicator}
+                onOverallIndicatorChange={handleOverallIndicatorChange}
               />
             }
           />

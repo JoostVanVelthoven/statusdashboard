@@ -2,6 +2,7 @@ import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRe
 import { detectStatusPageProvider } from '../services/detectStatusPageProvider'
 import { fetchStatusPageStatus } from '../services/fetchStatusPageStatus'
 import { saveStatusPages } from '../services/localStorageStatusPages'
+import { summarizeStatusIndicators } from '../services/summarizeStatusIndicators'
 import { createId } from '../utils/createId'
 import { StatusCard } from './StatusCard'
 import { StatusPageForm } from './StatusPageForm'
@@ -21,27 +22,12 @@ type StatusDashboardProps = {
   pages: StoredStatusPage[]
   refreshToken: number
   onPagesChange: (pages: StoredStatusPage[]) => void
-  onOverallIndicatorChange: (indicator: AtlassianIndicator) => void
+  onOverallIndicatorChange: (indicator: AtlassianIndicator, incidentPageCount: number) => void
 }
 
 type AddPageDraft = {
   detection: ProviderDetectionResult
   initialName: string
-}
-
-function indicatorSeverity(indicator: AtlassianIndicator): number {
-  switch (indicator) {
-    case 'none':
-      return 0
-    case 'minor':
-      return 1
-    case 'major':
-      return 2
-    case 'critical':
-      return 3
-    default:
-      return -1
-  }
 }
 
 function getDefaultStatus(): RuntimeStatus {
@@ -132,7 +118,7 @@ export const StatusDashboard = forwardRef<StatusDashboardHandle, StatusDashboard
   const pollStatuses = useCallback(async () => {
     if (pages.length === 0) {
       setStatusByPageId({})
-      onOverallIndicatorChange('unknown')
+      onOverallIndicatorChange('unknown', 0)
       return
     }
 
@@ -190,16 +176,13 @@ export const StatusDashboard = forwardRef<StatusDashboardHandle, StatusDashboard
       return next
     })
 
-    const computedOverallIndicator = result.reduce<AtlassianIndicator>((current, pageResult) => {
-      const nextIndicator =
-        pageResult.status === 'fulfilled'
-          ? pageResult.value.indicator
-          : current
+    const statusSummary = summarizeStatusIndicators(
+      result.flatMap((pageResult) =>
+        pageResult.status === 'fulfilled' ? [pageResult.value.indicator] : [],
+      ),
+    )
 
-      return indicatorSeverity(nextIndicator) > indicatorSeverity(current) ? nextIndicator : current
-    }, 'unknown')
-
-    onOverallIndicatorChange(computedOverallIndicator)
+    onOverallIndicatorChange(statusSummary.overallIndicator, statusSummary.incidentPageCount)
   }, [onOverallIndicatorChange, pages])
 
   useEffect(() => {
