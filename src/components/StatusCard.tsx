@@ -151,6 +151,17 @@ export function StatusCard({ page, status, onOpenSettings }: StatusCardProps) {
                 <span>{status.plannedMaintenances.length} planned</span>
               </div>
             ) : null}
+            <a
+              className="status-card__page-link"
+              href={page.url}
+              target="_blank"
+              rel="noreferrer"
+              onClick={(event) => event.stopPropagation()}
+              onKeyDown={(event) => event.stopPropagation()}
+            >
+              Open status page
+              <span aria-hidden="true">↗</span>
+            </a>
           </div>
         )}
       </div>

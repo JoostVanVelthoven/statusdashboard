@@ -243,6 +243,32 @@ body {
   stroke-width: 2;
 }
 
+.status-card__page-link {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 12px;
+  color: #a7f3d0;
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-decoration: none;
+  transition: color 150ms ease;
+}
+
+.status-card__page-link:hover {
+  color: #ecfdf5;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.status-card__page-link:focus-visible {
+  border-radius: 4px;
+  outline: 2px solid rgba(52, 211, 153, 0.75);
+  outline-offset: 3px;
+}
+
 .status-card__planned-flyout {
   position: absolute;
   left: 10px;
