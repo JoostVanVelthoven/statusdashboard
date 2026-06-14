@@ -1,4 +1,4 @@
-const CACHE_NAME = 'status-dashboard-v2'
+const CACHE_NAME = 'status-dashboard-v3'
 const APP_SHELL = ['/', '/index.html', '/manifest.webmanifest', '/favicon.svg', '/icons.svg']
 
 self.addEventListener('install', (event) => {
@@ -20,25 +20,38 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return
 
+  if (event.request.mode === 'navigate') {
+    event.respondWith(
+      caches.match('/index.html').then((cachedResponse) => {
+        const networkResponse = fetch(event.request)
+          .then((response) => {
+            if (response.ok) {
+              const copy = response.clone()
+              caches.open(CACHE_NAME).then((cache) => cache.put('/index.html', copy))
+            }
+
+            return response
+          })
+          .catch(() => cachedResponse ?? Response.error())
+
+        return cachedResponse ?? networkResponse
+      }),
+    )
+    return
+  }
+
   event.respondWith(
-    fetch(event.request)
-      .then((response) => {
-        if (response && response.status === 200 && response.type === 'basic') {
+    caches.match(event.request).then((cachedResponse) => {
+      if (cachedResponse) return cachedResponse
+
+      return fetch(event.request).then((response) => {
+        if (response.status === 200 && response.type === 'basic') {
           const copy = response.clone()
           caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy))
         }
 
         return response
       })
-      .catch(async () => {
-        const cached = await caches.match(event.request)
-        if (cached) return cached
-
-        if (event.request.mode === 'navigate') {
-          return caches.match('/index.html')
-        }
-
-        return Response.error()
-      }),
+    }),
   )
 })
