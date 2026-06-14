@@ -82,6 +82,7 @@ export const StatusDashboard = forwardRef<StatusDashboardHandle, StatusDashboard
   const [statusByPageId, setStatusByPageId] = useState<Record<string, RuntimeStatus>>({})
   const acknowledgedIndicatorsRef = useRef<AcknowledgedIndicatorByPageId>({})
   const indicatorsByPageIdRef = useRef<IndicatorByPageId>({})
+  const pollGenerationRef = useRef(0)
   const [addError, setAddError] = useState<string | null>(null)
   const [isAddingPage, setIsAddingPage] = useState(false)
   const [isPreparingAddFlow, setIsPreparingAddFlow] = useState(false)
@@ -127,6 +128,12 @@ export const StatusDashboard = forwardRef<StatusDashboardHandle, StatusDashboard
   )
 
   const pollStatuses = useCallback(async () => {
+    if (!navigator.onLine) {
+      return
+    }
+
+    const pollGeneration = ++pollGenerationRef.current
+
     if (pages.length === 0) {
       setStatusByPageId({})
       acknowledgedIndicatorsRef.current = {}
@@ -150,6 +157,11 @@ export const StatusDashboard = forwardRef<StatusDashboardHandle, StatusDashboard
     })
 
     const result = await Promise.allSettled(pages.map((page) => fetchStatusPageStatus(page)))
+
+    if (pollGeneration !== pollGenerationRef.current || !navigator.onLine) {
+      return
+    }
+
     const fallbackTimestamp = new Date().toISOString()
 
     setStatusByPageId((previous) => {
@@ -208,6 +220,31 @@ export const StatusDashboard = forwardRef<StatusDashboardHandle, StatusDashboard
       countUnacknowledgedIncidents(indicatorsByPageId, acknowledgedIndicatorsRef.current),
     )
   }, [onOverallIndicatorChange, pages])
+
+  useEffect(() => {
+    const handleOffline = () => {
+      pollGenerationRef.current += 1
+      setStatusByPageId({})
+      acknowledgedIndicatorsRef.current = {}
+      indicatorsByPageIdRef.current = {}
+      onOverallIndicatorChange('unknown', 0)
+    }
+    const handleOnline = () => {
+      void pollStatuses()
+    }
+
+    window.addEventListener('offline', handleOffline)
+    window.addEventListener('online', handleOnline)
+
+    if (!navigator.onLine) {
+      handleOffline()
+    }
+
+    return () => {
+      window.removeEventListener('offline', handleOffline)
+      window.removeEventListener('online', handleOnline)
+    }
+  }, [onOverallIndicatorChange, pollStatuses])
 
   useEffect(() => {
     const kickoffId = window.setTimeout(() => {
