@@ -41,7 +41,7 @@ function parseStoredPage(value: unknown): StoredStatusPage | null {
     typeof candidate.id !== 'string' ||
     typeof candidate.name !== 'string' ||
     !isSafeHttpsUrl(candidate.url) ||
-    candidate.provider !== 'atlassian-statuspage' ||
+    (candidate.provider !== 'atlassian-statuspage' && candidate.provider !== 'instatus') ||
     !isSafeHttpsUrl(candidate.statusApiUrl) ||
     (typeof candidate.summaryApiUrl !== 'undefined' && !isSafeHttpsUrl(candidate.summaryApiUrl)) ||
     typeof candidate.createdAt !== 'string' ||

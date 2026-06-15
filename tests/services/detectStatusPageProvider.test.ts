@@ -130,4 +130,45 @@ describe('detectStatusPageProvider (Atlassian)', () => {
       'No supported status page found.',
     )
   })
+
+  it('detects Instatus and extracts nested components from its public v3 API', async () => {
+    fetchMock.mockImplementation(async (input: string) => {
+      if (input.endsWith('/api/v2/status.json') || input.endsWith('/api/v2/summary.json')) {
+        return createJsonResponse({ message: 'Not Found' }, 404, 'Not Found')
+      }
+      if (input.endsWith('/v3/summary.json')) {
+        return createJsonResponse({
+          page: { name: 'Acme Instatus', status: 'HASISSUES' },
+          activeIncidents: [],
+        })
+      }
+      if (input.endsWith('/v3/components.json')) {
+        return createJsonResponse([
+          {
+            id: 'group',
+            name: 'Platform',
+            status: 'PARTIALOUTAGE',
+            isParent: true,
+            children: [
+              { id: 'api', name: 'API', status: 'PARTIALOUTAGE', isParent: false },
+            ],
+          },
+          { id: 'website', name: 'Website', status: 'OPERATIONAL', isParent: false },
+        ])
+      }
+
+      throw new Error(`Unexpected URL: ${input}`)
+    })
+
+    const result = await detectStatusPageProvider('https://acme.instatus.com')
+
+    expect(result.provider).toBe('instatus')
+    expect(result.statusApiUrl).toBe('https://acme.instatus.com/v3/summary.json')
+    expect(result.summaryApiUrl).toBe('https://acme.instatus.com/v3/components.json')
+    expect(result.name).toBe('Acme Instatus')
+    expect(result.availableComponents).toEqual([
+      { id: 'api', name: 'API', status: 'PARTIALOUTAGE' },
+      { id: 'website', name: 'Website', status: 'OPERATIONAL' },
+    ])
+  })
 })

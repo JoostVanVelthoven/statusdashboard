@@ -1,6 +1,6 @@
 export const STATUS_PAGES_STORAGE_KEY = 'status-monitor-pages'
 
-export type StatusPageProvider = 'atlassian-statuspage'
+export type StatusPageProvider = 'atlassian-statuspage' | 'instatus'
 
 export interface StoredStatusPage {
   id: string
@@ -56,6 +56,35 @@ export interface AtlassianSummaryPayload extends AtlassianStatusPayload {
 export interface AtlassianScheduledMaintenancesPayload {
   page?: AtlassianPageInfo
   scheduled_maintenances?: AtlassianScheduledMaintenance[]
+}
+
+export interface InstatusSummaryPayload {
+  page?: {
+    name?: string
+    url?: string
+    status?: string
+  }
+  activeIncidents?: Array<{
+    id?: string
+    name?: string
+  }>
+  activeMaintenances?: Array<{
+    id?: string
+    name?: string
+    status?: string
+    start?: string
+    end?: string
+    duration?: string | number
+    components?: Array<{ id?: string; name?: string }>
+  }>
+}
+
+export interface InstatusComponent {
+  id?: string
+  name?: string
+  status?: string
+  isParent?: boolean
+  children?: InstatusComponent[]
 }
 
 export interface StatusPageComponentOption {
