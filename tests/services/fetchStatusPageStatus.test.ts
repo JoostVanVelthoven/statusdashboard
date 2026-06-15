@@ -328,3 +328,70 @@ describe('fetchStatusPageStatus (Atlassian)', () => {
     expect(result.plannedMaintenances).toEqual([])
   })
 })
+
+describe('fetchStatusPageStatus (Instatus)', () => {
+  const fetchMock = vi.fn()
+
+  beforeEach(() => {
+    vi.stubGlobal('fetch', fetchMock)
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    vi.restoreAllMocks()
+    fetchMock.mockReset()
+  })
+
+  it('maps selected Instatus components and active maintenance', async () => {
+    const page = createPage({
+      provider: 'instatus',
+      statusApiUrl: 'https://acme.instatus.com/v3/summary.json',
+      summaryApiUrl: 'https://acme.instatus.com/v3/components.json',
+      monitoredComponentIds: ['api', 'website'],
+    })
+
+    fetchMock.mockImplementation(async (input: string) => {
+      if (input.endsWith('/v3/summary.json')) {
+        return createJsonResponse({
+          page: { name: 'Acme', status: 'HASISSUES' },
+          activeMaintenances: [
+            {
+              id: 'maintenance-1',
+              name: 'API upgrade',
+              status: 'INPROGRESS',
+              start: '2026-06-15T10:00:00Z',
+              end: '2026-06-15T11:00:00Z',
+              components: [{ id: 'api', name: 'API' }],
+            },
+          ],
+        })
+      }
+      if (input.endsWith('/v3/components.json')) {
+        return createJsonResponse([
+          { id: 'api', name: 'API', status: 'PARTIALOUTAGE', isParent: false },
+          { id: 'website', name: 'Website', status: 'OPERATIONAL', isParent: false },
+        ])
+      }
+
+      throw new Error(`Unexpected URL: ${input}`)
+    })
+
+    const result = await fetchStatusPageStatus(page)
+
+    expect(result.indicator).toBe('major')
+    expect(result.description).toBe('1/2 selected components degraded')
+    expect(result.degradedComponents).toEqual([
+      { id: 'api', name: 'API', status: 'PARTIALOUTAGE' },
+    ])
+    expect(result.plannedMaintenances).toEqual([
+      {
+        id: 'maintenance-1',
+        name: 'API upgrade',
+        status: 'inprogress',
+        scheduledFor: '2026-06-15T10:00:00Z',
+        scheduledUntil: '2026-06-15T11:00:00Z',
+        impactedComponents: [{ id: 'api', name: 'API', status: 'UNDERMAINTENANCE' }],
+      },
+    ])
+  })
+})

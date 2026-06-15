@@ -1,6 +1,8 @@
 import type {
   AtlassianStatusPayload,
   AtlassianSummaryPayload,
+  InstatusComponent,
+  InstatusSummaryPayload,
   ProviderDetectionResult,
   StatusPageComponentOption,
 } from '../types/status'
@@ -81,6 +83,41 @@ function extractComponentOptions(payload: AtlassianSummaryPayload): StatusPageCo
     }))
 }
 
+function isInstatusSummaryPayload(payload: unknown): payload is InstatusSummaryPayload {
+  if (typeof payload !== 'object' || payload === null) {
+    return false
+  }
+
+  const candidate = payload as InstatusSummaryPayload
+  return typeof candidate.page?.name === 'string' && typeof candidate.page?.status === 'string'
+}
+
+function flattenInstatusComponents(components: InstatusComponent[]): InstatusComponent[] {
+  return components.flatMap((component) => [
+    ...(component.isParent ? [] : [component]),
+    ...(Array.isArray(component.children) ? flattenInstatusComponents(component.children) : []),
+  ])
+}
+
+function extractInstatusComponentOptions(payload: unknown): StatusPageComponentOption[] {
+  if (!Array.isArray(payload)) {
+    return []
+  }
+
+  return flattenInstatusComponents(payload as InstatusComponent[])
+    .filter(
+      (component) =>
+        typeof component.id === 'string' &&
+        typeof component.name === 'string' &&
+        typeof component.status === 'string',
+    )
+    .map((component) => ({
+      id: component.id as string,
+      name: component.name as string,
+      status: component.status as string,
+    }))
+}
+
 export function normalizeStatusPageUrl(rawUrl: string): string {
   const trimmedUrl = rawUrl.trim()
 
@@ -132,6 +169,31 @@ export async function detectStatusPageProvider(rawBaseUrl: string): Promise<Prov
       summaryApiUrl: summarySupported ? summaryApiUrl : undefined,
       name: detectedName,
       availableComponents: summarySupported ? extractComponentOptions(summaryResult.value) : [],
+    }
+  }
+
+  const instatusSummaryApiUrl = `${baseUrl}/v3/summary.json`
+  const instatusComponentsApiUrl = `${baseUrl}/v3/components.json`
+  const [instatusSummaryResult, instatusComponentsResult] = await Promise.allSettled([
+    fetchJson<InstatusSummaryPayload>(instatusSummaryApiUrl),
+    fetchJson<unknown>(instatusComponentsApiUrl),
+  ])
+
+  if (
+    instatusSummaryResult.status === 'fulfilled' &&
+    isInstatusSummaryPayload(instatusSummaryResult.value)
+  ) {
+    return {
+      provider: 'instatus',
+      baseUrl,
+      statusApiUrl: instatusSummaryApiUrl,
+      summaryApiUrl:
+        instatusComponentsResult.status === 'fulfilled' ? instatusComponentsApiUrl : undefined,
+      name: instatusSummaryResult.value.page?.name,
+      availableComponents:
+        instatusComponentsResult.status === 'fulfilled'
+          ? extractInstatusComponentOptions(instatusComponentsResult.value)
+          : [],
     }
   }
 
