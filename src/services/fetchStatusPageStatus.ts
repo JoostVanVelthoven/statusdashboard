@@ -3,6 +3,8 @@ import type {
   AtlassianSummaryPayload,
   AtlassianStatusPayload,
   AtlassianIndicator,
+  InstatusComponent,
+  InstatusSummaryPayload,
   PlannedMaintenance,
   StatusPageComponentOption,
   StatusFetchResult,
@@ -96,6 +98,125 @@ function indicatorSeverity(indicator: AtlassianIndicator): number {
       return 3
     default:
       return -1
+  }
+}
+
+function mapInstatusStatusToIndicator(status: unknown): AtlassianIndicator {
+  if (typeof status !== 'string') {
+    return 'unknown'
+  }
+
+  const normalized = status.toUpperCase()
+
+  if (normalized === 'UP' || normalized === 'OPERATIONAL') {
+    return 'none'
+  }
+  if (normalized.includes('MAJOROUTAGE')) {
+    return 'critical'
+  }
+  if (normalized.includes('MINOROUTAGE') || normalized.includes('PARTIALOUTAGE')) {
+    return 'major'
+  }
+  if (normalized.includes('MAINTENANCE') || normalized.includes('DEGRADED')) {
+    return 'minor'
+  }
+  if (normalized === 'HASISSUES' || normalized === 'DOWN') {
+    return 'major'
+  }
+
+  return 'unknown'
+}
+
+function flattenInstatusComponents(components: InstatusComponent[]): InstatusComponent[] {
+  return components.flatMap((component) => [
+    ...(component.isParent ? [] : [component]),
+    ...(Array.isArray(component.children) ? flattenInstatusComponents(component.children) : []),
+  ])
+}
+
+function mapInstatusStatus(
+  page: StoredStatusPage,
+  summary: InstatusSummaryPayload,
+  componentsPayload: unknown,
+  latencyMs: number,
+): StatusFetchResult {
+  const timestamp = new Date().toISOString()
+  const components = Array.isArray(componentsPayload)
+    ? flattenInstatusComponents(componentsPayload as InstatusComponent[])
+    : []
+  const targetIds =
+    page.monitoredComponentIds.length > 0 ? new Set(page.monitoredComponentIds) : null
+  const selectedComponents = components.filter(
+    (component) =>
+      typeof component.id === 'string' && (!targetIds || targetIds.has(component.id)),
+  )
+  const degradedComponents = selectedComponents
+    .filter((component) => mapInstatusStatusToIndicator(component.status) !== 'none')
+    .map((component) => ({
+      id: component.id as string,
+      name: typeof component.name === 'string' ? component.name : 'Unnamed component',
+      status: typeof component.status === 'string' ? component.status : 'UNKNOWN',
+    }))
+
+  let indicator = mapInstatusStatusToIndicator(summary.page?.status)
+  let description =
+    indicator === 'none' ? 'All systems operational' : 'Instatus reports active issues'
+
+  if (targetIds) {
+    if (selectedComponents.length === 0) {
+      indicator = 'unknown'
+      description = 'No selected components found in components.json.'
+    } else {
+      indicator = selectedComponents.reduce<AtlassianIndicator>((current, component) => {
+        const next = mapInstatusStatusToIndicator(component.status)
+        return indicatorSeverity(next) > indicatorSeverity(current) ? next : current
+      }, 'none')
+      description =
+        degradedComponents.length === 0
+          ? `${selectedComponents.length} selected components operational`
+          : `${degradedComponents.length}/${selectedComponents.length} selected components degraded`
+    }
+  }
+
+  const plannedMaintenances = Array.isArray(summary.activeMaintenances)
+    ? summary.activeMaintenances
+        .map((maintenance, index) => ({
+          id: typeof maintenance.id === 'string' ? maintenance.id : `maintenance-${index}`,
+          name:
+            typeof maintenance.name === 'string' && maintenance.name.trim()
+              ? maintenance.name.trim()
+              : 'Scheduled maintenance',
+          status:
+            typeof maintenance.status === 'string' ? maintenance.status.toLowerCase() : 'active',
+          scheduledFor: typeof maintenance.start === 'string' ? maintenance.start : null,
+          scheduledUntil: typeof maintenance.end === 'string' ? maintenance.end : null,
+          impactedComponents: Array.isArray(maintenance.components)
+            ? maintenance.components
+                .filter(
+                  (component) =>
+                    typeof component.id === 'string' &&
+                    typeof component.name === 'string' &&
+                    (!targetIds || targetIds.has(component.id)),
+                )
+                .map((component) => ({
+                  id: component.id as string,
+                  name: component.name as string,
+                  status: 'UNDERMAINTENANCE',
+                }))
+            : [],
+        }))
+        .filter((maintenance) => !targetIds || maintenance.impactedComponents.length > 0)
+    : []
+
+  return {
+    pageId: page.id,
+    indicator,
+    description,
+    degradedComponents,
+    plannedMaintenances,
+    fetchedAt: timestamp,
+    lastSuccessfulAt: timestamp,
+    latencyMs,
   }
 }
 
@@ -324,6 +445,15 @@ function mapMonitoredComponentsToStatus(
 
 export async function fetchStatusPageStatus(page: StoredStatusPage): Promise<StatusFetchResult> {
   const startedAt = Date.now()
+
+  if (page.provider === 'instatus') {
+    const [summary, components] = await Promise.all([
+      fetchJson<InstatusSummaryPayload>(page.statusApiUrl),
+      page.summaryApiUrl ? fetchJson<unknown>(page.summaryApiUrl) : Promise.resolve([]),
+    ])
+    return mapInstatusStatus(page, summary, components, Date.now() - startedAt)
+  }
+
   const scheduledMaintenancesApiUrl = `${page.url}/api/v2/scheduled-maintenances.json`
   const monitoredIds = page.monitoredComponentIds.length > 0 ? page.monitoredComponentIds : null
   let plannedMaintenances: PlannedMaintenance[] = []

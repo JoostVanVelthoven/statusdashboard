@@ -93,7 +93,7 @@ export function StatusPageForm({
           required
         />
         <p className="mt-2 text-sm text-slate-400">
-          Atlassian Statuspage is detected automatically via `/api/v2/status.json`.
+          Atlassian Statuspage and Instatus pages are detected automatically.
         </p>
       </div>
 

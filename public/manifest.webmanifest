@@ -4,8 +4,8 @@
   "description": "Real-time service status dashboard as an installable Progressive Web App.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#0f172a",
-  "theme_color": "#0f172a",
+  "background_color": "#101512",
+  "theme_color": "#101512",
   "icons": [
     {
       "src": "/favicon.svg",

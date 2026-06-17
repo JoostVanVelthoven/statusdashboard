@@ -173,8 +173,11 @@ body {
 }
 
 .status-card__content {
+  display: flex;
   min-width: 0;
   flex: 1 1 auto;
+  align-self: stretch;
+  flex-direction: column;
 }
 
 .status-card__headline {
@@ -221,8 +224,9 @@ body {
 }
 
 .status-card__planned-pill {
+  display: flex;
+  width: fit-content;
   margin-top: 10px;
-  display: inline-flex;
   align-items: center;
   gap: 6px;
   border-radius: 999px;
@@ -246,10 +250,12 @@ body {
 .status-card__page-link {
   position: relative;
   z-index: 1;
-  display: inline-flex;
+  display: flex;
+  width: fit-content;
   align-items: center;
   gap: 5px;
-  margin-top: 12px;
+  margin-top: auto;
+  padding-top: 12px;
   color: #a7f3d0;
   font-size: 0.78rem;
   font-weight: 600;

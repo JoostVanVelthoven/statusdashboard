@@ -3,9 +3,10 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 Status Dashboard is a client-side Progressive Web App for monitoring multiple
-Atlassian Statuspage services in one dashboard. It detects compatible status
-pages, tracks incidents and planned maintenance, supports component-level
-selection, and can share a dashboard configuration through a compressed URL.
+Atlassian Statuspage and Instatus services in one dashboard. It detects
+compatible status pages, tracks incidents and planned maintenance, supports
+component-level selection, and can share a dashboard configuration through a
+compressed URL.
 
 ## Transparency and auditability
 
@@ -32,9 +33,13 @@ assess it for your own threat model before deployment. See
 
 ## Supported status pages and limitations
 
-The current provider integration expects the Atlassian Statuspage v2 endpoints
-`/api/v2/status.json`, `/api/v2/summary.json`, and, where available,
-`/api/v2/scheduled-maintenances.json`.
+Supported providers:
+
+- Atlassian Statuspage, using `/api/v2/status.json`, `/api/v2/summary.json`,
+  and, where available, `/api/v2/scheduled-maintenances.json`.
+- Instatus, using its public `/v3/summary.json` and `/v3/components.json`
+  endpoints. Component selection is supported; active incidents and
+  maintenance are reflected in the page status.
 
 The browser contacts status-page hosts directly. Those hosts must allow the
 request through CORS. A page can therefore work in a normal browser tab while
