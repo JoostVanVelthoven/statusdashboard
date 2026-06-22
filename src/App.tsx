@@ -438,12 +438,12 @@ export default function App() {
       <footer className="border-t border-slate-800/80 bg-[#0b1310]/80">
         <div className="mx-auto flex w-full max-w-[1920px] justify-center px-8 py-3 text-sm text-slate-400 md:px-10">
           <a
-            href="https://github.com/joostvanvelthoven/status"
+            href="https://github.com/joostvanvelthoven/statusdashboard"
             target="_blank"
             rel="noreferrer"
             className="transition hover:text-slate-200"
           >
-            GitHub.com/joostvanvelthoven/status
+            Fork on Github
           </a>
         </div>
       </footer>
