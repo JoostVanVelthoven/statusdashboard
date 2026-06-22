@@ -22,6 +22,7 @@ if ('serviceWorker' in navigator) {
         event.data?.type === 'RELEASE_HARD_RELOAD_REQUIRED')
     ) {
       reloadRequested = true
+      console.log(`Service worker requested page reload: ${event.data.type}`)
       window.location.reload()
     }
   })

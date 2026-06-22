@@ -28,16 +28,14 @@ async function getWindowClients() {
   return self.clients.matchAll({ type: 'window', includeUncontrolled: true })
 }
 
-async function broadcastMessage(type) {
-  const clients = await getWindowClients()
-  clients.forEach((client) => client.postMessage({ type }))
-}
-
 async function reloadWindowClients(type) {
   const clients = await getWindowClients()
 
+  console.log(`[ServiceWorker] Reloading ${clients.length} window client(s): ${type}`)
+
   await Promise.allSettled(
     clients.map((client) => {
+      console.log(`[ServiceWorker] Reloading client: ${client.url}`)
       client.postMessage({ type })
       return client.navigate(client.url)
     }),
@@ -56,7 +54,7 @@ async function fetchLatestIndex({ notifyOnEtagChange }) {
   await cache.put(INDEX_URL, response.clone())
 
   if (notifyOnEtagChange && previousEtag && nextEtag && previousEtag !== nextEtag) {
-    await broadcastMessage(MESSAGE_PAGE_RELOAD)
+    await reloadWindowClients(MESSAGE_PAGE_RELOAD)
   }
 
   return response
