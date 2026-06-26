@@ -24,7 +24,7 @@ type MonitorChromeState = {
 
 const DEFAULT_CHROME_STATE: MonitorChromeState = {
   color: '#38bdf8',
-  title: 'Status Dashboard',
+  title: 'Status Page Aggregator - Monitor Multiple Status Pages',
 }
 
 function getMonitorChromeState(indicator: AtlassianIndicator): MonitorChromeState {
@@ -194,7 +194,7 @@ export default function App() {
       if (option === 'native') {
         if (hasNativeShare) {
           await navigator.share({
-            title: 'Status Dashboard',
+            title: 'Status Page Aggregator - Monitor Multiple Status Pages',
             text: shareText,
             url: shareLink,
           })
@@ -351,12 +351,12 @@ export default function App() {
                 <rect x="28" y="30" width="10" height="40" rx="3" fill="#10b981" />
                 <circle cx="65" cy="50" r="14" fill="#34d399" />
               </svg>
-              <NavLink to="/" label="Dashboard" isActive={isDashboardRoute} />
+              <NavLink to="/" label="All Status Pages" isActive={isDashboardRoute} />
             </div>
           </div>
 
           <div className="flex shrink-0 items-center justify-end gap-2 text-slate-300 md:gap-4">
-            <span className="hidden text-lg lg:block">Refresh rate: 60s</span>
+            <span className="hidden text-lg lg:block">Free status page aggregator · 60s refresh</span>
             {isDashboardRoute ? (
               <button
                 type="button"
