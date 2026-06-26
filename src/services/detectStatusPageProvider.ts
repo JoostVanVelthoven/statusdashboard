@@ -99,12 +99,24 @@ function flattenInstatusComponents(components: InstatusComponent[]): InstatusCom
   ])
 }
 
-function extractInstatusComponentOptions(payload: unknown): StatusPageComponentOption[] {
-  if (!Array.isArray(payload)) {
-    return []
+function getInstatusComponents(payload: unknown): InstatusComponent[] {
+  if (Array.isArray(payload)) {
+    return payload as InstatusComponent[]
   }
 
-  return flattenInstatusComponents(payload as InstatusComponent[])
+  if (typeof payload === 'object' && payload !== null) {
+    const candidate = payload as { components?: unknown }
+
+    if (Array.isArray(candidate.components)) {
+      return candidate.components as InstatusComponent[]
+    }
+  }
+
+  return []
+}
+
+function extractInstatusComponentOptions(payload: unknown): StatusPageComponentOption[] {
+  return flattenInstatusComponents(getInstatusComponents(payload))
     .filter(
       (component) =>
         typeof component.id === 'string' &&
