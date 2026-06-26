@@ -134,6 +134,22 @@ function flattenInstatusComponents(components: InstatusComponent[]): InstatusCom
   ])
 }
 
+function getInstatusComponents(payload: unknown): InstatusComponent[] {
+  if (Array.isArray(payload)) {
+    return payload as InstatusComponent[]
+  }
+
+  if (typeof payload === 'object' && payload !== null) {
+    const candidate = payload as { components?: unknown }
+
+    if (Array.isArray(candidate.components)) {
+      return candidate.components as InstatusComponent[]
+    }
+  }
+
+  return []
+}
+
 function mapInstatusStatus(
   page: StoredStatusPage,
   summary: InstatusSummaryPayload,
@@ -141,9 +157,7 @@ function mapInstatusStatus(
   latencyMs: number,
 ): StatusFetchResult {
   const timestamp = new Date().toISOString()
-  const components = Array.isArray(componentsPayload)
-    ? flattenInstatusComponents(componentsPayload as InstatusComponent[])
-    : []
+  const components = flattenInstatusComponents(getInstatusComponents(componentsPayload))
   const targetIds =
     page.monitoredComponentIds.length > 0 ? new Set(page.monitoredComponentIds) : null
   const selectedComponents = components.filter(

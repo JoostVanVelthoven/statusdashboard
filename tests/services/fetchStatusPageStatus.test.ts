@@ -367,10 +367,12 @@ describe('fetchStatusPageStatus (Instatus)', () => {
         })
       }
       if (input.endsWith('/v3/components.json')) {
-        return createJsonResponse([
-          { id: 'api', name: 'API', status: 'PARTIALOUTAGE', isParent: false },
-          { id: 'website', name: 'Website', status: 'OPERATIONAL', isParent: false },
-        ])
+        return createJsonResponse({
+          components: [
+            { id: 'api', name: 'API', status: 'PARTIALOUTAGE', isParent: false },
+            { id: 'website', name: 'Website', status: 'OPERATIONAL', isParent: false },
+          ],
+        })
       }
 
       throw new Error(`Unexpected URL: ${input}`)
