@@ -73,6 +73,12 @@ function formatComponentStatus(status: string): string {
   return status.replace(/_/g, ' ')
 }
 
+const EXAMPLE_STATUS_PAGES = [
+  { name: 'GitHub Status', url: 'https://www.githubstatus.com' },
+  { name: 'Cloudflare Status', url: 'https://www.cloudflarestatus.com' },
+  { name: 'Vercel Status', url: 'https://www.vercel-status.com' },
+] as const
+
 export const StatusDashboard = forwardRef<StatusDashboardHandle, StatusDashboardProps>(function StatusDashboard({
   pages,
   refreshToken,
@@ -617,9 +623,41 @@ export const StatusDashboard = forwardRef<StatusDashboardHandle, StatusDashboard
     [buildStoredPage, onPagesChange, pages],
   )
 
-  const handleAddSample = useCallback(async () => {
-    await addPageFromUrl('https://www.githubstatus.com')
+  const handleAddExamplePage = useCallback(async (url: string) => {
+    await addPageFromUrl(url)
   }, [addPageFromUrl])
+
+  const handleAddAllExamples = useCallback(async () => {
+    setAddError(null)
+    setIsAddingPage(true)
+
+    try {
+      const detectedExamples = await Promise.all(
+        EXAMPLE_STATUS_PAGES.map(async (example) => ({
+          example,
+          detection: await detectStatusPageProvider(example.url),
+        })),
+      )
+      const existingUrls = new Set(pages.map((page) => page.url))
+      const newPages = detectedExamples
+        .filter(({ detection }) => !existingUrls.has(detection.baseUrl))
+        .map(({ detection, example }) => buildStoredPage(detection, example.name))
+
+      if (newPages.length === 0) {
+        throw new Error('The example status pages are already in the list.')
+      }
+
+      const nextPages: StoredStatusPage[] = [...pages, ...newPages]
+      saveStatusPages(nextPages)
+      onPagesChange(nextPages)
+    } catch (error) {
+      setAddError(
+        error instanceof Error ? error.message : 'Unknown error while adding example status pages.',
+      )
+    } finally {
+      setIsAddingPage(false)
+    }
+  }, [buildStoredPage, onPagesChange, pages])
 
   const handleQuickAddClick = useCallback(() => {
     setAddError(null)
@@ -782,32 +820,68 @@ export const StatusDashboard = forwardRef<StatusDashboardHandle, StatusDashboard
 
   return (
     <main className="mx-auto w-full max-w-[1480px] px-4 py-4 sm:px-6 sm:py-6 md:px-8 md:py-8">
-      {pages.length === 0 ? (
-        <section className="mx-auto mt-6 max-w-2xl rounded-2xl border border-dashed border-slate-500/60 bg-[#141d1a]/70 p-6 text-center sm:mt-12 sm:p-10">
-          <h2 className="text-3xl font-semibold text-slate-100 sm:text-4xl">No monitoring configured</h2>
-          <p className="mx-auto mt-4 max-w-lg text-lg text-slate-300 sm:text-xl">
-            There are currently no active service monitors configured.
+      <section className="grid gap-6 rounded-3xl border border-emerald-500/20 bg-[#111b17] p-6 shadow-2xl shadow-black/20 md:grid-cols-[1.15fr_0.85fr] md:p-8">
+        <div>
+          <p className="text-sm font-semibold uppercase tracking-[0.18em] text-emerald-300">Free status page aggregator</p>
+          <h1 className="mt-3 text-4xl font-bold tracking-tight text-white sm:text-5xl">
+            Monitor Multiple Status Pages in One Dashboard
+          </h1>
+          <p className="mt-4 max-w-2xl text-lg text-slate-300">
+            Track Atlassian-compatible status pages, outages, degraded components and planned maintenance without an account. Add services, refresh every 60 seconds and share your dashboard.
           </p>
-          <div className="mt-4 flex flex-wrap justify-center gap-3">
+          <div className="mt-6 flex flex-wrap gap-3">
             <button
               type="button"
               onClick={handleQuickAddClick}
               disabled={isPreparingAddFlow || isAddingPage}
-              className="w-full rounded-xl bg-emerald-400 px-6 py-3 text-base font-semibold text-[#042416] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto sm:text-lg"
+              className="rounded-xl bg-emerald-400 px-6 py-3 font-semibold text-[#042416] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              Add status page
+              Create Your Free Status Dashboard
             </button>
             <button
               type="button"
               onClick={() => {
-                void handleAddSample()
+                void handleAddAllExamples()
               }}
               disabled={isAddingPage}
-              className="w-full rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-6 py-3 text-base font-semibold text-emerald-300 transition hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto sm:text-lg"
+              className="rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-6 py-3 font-semibold text-emerald-300 transition hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              + Add Sample GitHub Status
+              Add 3 example statuses
             </button>
           </div>
+        </div>
+        <div className="rounded-2xl border border-slate-700/70 bg-[#0b1310] p-4">
+          <h2 className="text-lg font-semibold text-slate-100">Start fast</h2>
+          <ol className="mt-3 space-y-3 text-sm text-slate-300">
+            <li><strong className="text-emerald-300">1.</strong> Paste a status page URL.</li>
+            <li><strong className="text-emerald-300">2.</strong> Choose components to monitor.</li>
+            <li><strong className="text-emerald-300">3.</strong> Share the ready dashboard.</li>
+          </ol>
+          <div className="mt-5 space-y-2">
+            {EXAMPLE_STATUS_PAGES.map((example) => (
+              <button
+                key={example.url}
+                type="button"
+                onClick={() => {
+                  void handleAddExamplePage(example.url)
+                }}
+                disabled={isAddingPage}
+                className="flex w-full items-center justify-between rounded-xl border border-slate-700 bg-slate-900/40 px-4 py-3 text-left text-sm text-slate-200 transition hover:border-emerald-500/60 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <span>{example.name}</span>
+                <span className="text-emerald-300">Add</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {pages.length === 0 ? (
+        <section className="mx-auto mt-6 max-w-2xl rounded-2xl border border-dashed border-slate-500/60 bg-[#141d1a]/70 p-6 text-center sm:p-8">
+          <h2 className="text-2xl font-semibold text-slate-100">No monitoring configured yet</h2>
+          <p className="mx-auto mt-3 max-w-lg text-slate-300">
+            Use the button above to configure your first service, or load the three examples.
+          </p>
           {addError ? <p className="mt-4 text-sm text-rose-300">{addError}</p> : null}
         </section>
       ) : (
