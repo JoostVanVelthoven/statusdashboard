@@ -94,6 +94,7 @@ export const StatusDashboard = forwardRef<StatusDashboardHandle, StatusDashboard
   const [isPreparingAddFlow, setIsPreparingAddFlow] = useState(false)
   const [isUrlModalOpen, setIsUrlModalOpen] = useState(false)
   const [urlDraft, setUrlDraft] = useState('https://')
+  const [quickUrlDraft, setQuickUrlDraft] = useState('https://')
   const [urlModalError, setUrlModalError] = useState<string | null>(null)
   const [isAddFormModalOpen, setIsAddFormModalOpen] = useState(false)
   const [addFormError, setAddFormError] = useState<string | null>(null)
@@ -450,20 +451,18 @@ export const StatusDashboard = forwardRef<StatusDashboardHandle, StatusDashboard
     setComponentSearch('')
   }, [isEditingPage])
 
-  const handleUrlDraftSubmit = useCallback(
-    async (event: React.FormEvent<HTMLFormElement>) => {
-      event.preventDefault()
-
+  const prepareAddFormFromUrl = useCallback(
+    async (url: string, setError: (message: string | null) => void) => {
       if (isPreparingAddFlow) {
         return
       }
 
-      setUrlModalError(null)
+      setError(null)
       setAddError(null)
       setIsPreparingAddFlow(true)
 
       try {
-        const detection = await detectStatusPageProvider(urlDraft)
+        const detection = await detectStatusPageProvider(url)
         const alreadyExists = pages.some((page) => page.url === detection.baseUrl)
 
         if (alreadyExists) {
@@ -476,12 +475,28 @@ export const StatusDashboard = forwardRef<StatusDashboardHandle, StatusDashboard
         setAddFormError(null)
         setIsAddFormModalOpen(true)
       } catch (error) {
-        setUrlModalError(error instanceof Error ? error.message : 'Unknown error while validating URL.')
+        setError(error instanceof Error ? error.message : 'Unknown error while validating URL.')
       } finally {
         setIsPreparingAddFlow(false)
       }
     },
-    [isPreparingAddFlow, pages, urlDraft],
+    [isPreparingAddFlow, pages],
+  )
+
+  const handleUrlDraftSubmit = useCallback(
+    async (event: React.FormEvent<HTMLFormElement>) => {
+      event.preventDefault()
+      await prepareAddFormFromUrl(urlDraft, setUrlModalError)
+    },
+    [prepareAddFormFromUrl, urlDraft],
+  )
+
+  const handleQuickUrlSubmit = useCallback(
+    async (event: React.FormEvent<HTMLFormElement>) => {
+      event.preventDefault()
+      await prepareAddFormFromUrl(quickUrlDraft, setAddError)
+    },
+    [prepareAddFormFromUrl, quickUrlDraft],
   )
 
   const handleAddFormSubmit = useCallback(
@@ -510,6 +525,7 @@ export const StatusDashboard = forwardRef<StatusDashboardHandle, StatusDashboard
         setIsAddFormModalOpen(false)
         setAddPageDraft(null)
         setUrlDraft('https://')
+        setQuickUrlDraft('https://')
       } catch (error) {
         setAddFormError(
           error instanceof Error ? error.message : 'Unknown error while adding status page.',
@@ -820,61 +836,87 @@ export const StatusDashboard = forwardRef<StatusDashboardHandle, StatusDashboard
 
   return (
     <main className="mx-auto w-full max-w-[1480px] px-4 py-4 sm:px-6 sm:py-6 md:px-8 md:py-8">
-      <section className="grid gap-6 rounded-3xl border border-emerald-500/20 bg-[#111b17] p-6 shadow-2xl shadow-black/20 md:grid-cols-[1.15fr_0.85fr] md:p-8">
-        <div>
-          <p className="text-sm font-semibold uppercase tracking-[0.18em] text-emerald-300">Free status page aggregator</p>
-          <h1 className="mt-3 text-4xl font-bold tracking-tight text-white sm:text-5xl">
-            Monitor Multiple Status Pages in One Dashboard
-          </h1>
-          <p className="mt-4 max-w-2xl text-lg text-slate-300">
-            Track Atlassian-compatible status pages, outages, degraded components and planned maintenance without an account. Add services, refresh every 60 seconds and share your dashboard.
-          </p>
-          <div className="mt-6 flex flex-wrap gap-3">
-            <button
-              type="button"
-              onClick={handleQuickAddClick}
-              disabled={isPreparingAddFlow || isAddingPage}
-              className="rounded-xl bg-emerald-400 px-6 py-3 font-semibold text-[#042416] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              Create Your Free Status Dashboard
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                void handleAddAllExamples()
-              }}
-              disabled={isAddingPage}
-              className="rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-6 py-3 font-semibold text-emerald-300 transition hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              Add 3 example statuses
-            </button>
-          </div>
-        </div>
-        <div className="rounded-2xl border border-slate-700/70 bg-[#0b1310] p-4">
-          <h2 className="text-lg font-semibold text-slate-100">Start fast</h2>
-          <ol className="mt-3 space-y-3 text-sm text-slate-300">
-            <li><strong className="text-emerald-300">1.</strong> Paste a status page URL.</li>
-            <li><strong className="text-emerald-300">2.</strong> Choose components to monitor.</li>
-            <li><strong className="text-emerald-300">3.</strong> Share the ready dashboard.</li>
-          </ol>
-          <div className="mt-5 space-y-2">
-            {EXAMPLE_STATUS_PAGES.map((example) => (
+      {pages.length === 0 ? (
+        <section className="grid gap-6 rounded-3xl border border-emerald-500/20 bg-[#111b17] p-6 shadow-2xl shadow-black/20 md:grid-cols-[1.15fr_0.85fr] md:p-8">
+          <div>
+            <p className="text-sm font-semibold uppercase tracking-[0.18em] text-emerald-300">Free status page aggregator</p>
+            <h1 className="mt-3 text-4xl font-bold tracking-tight text-white sm:text-5xl">
+              Monitor Multiple Status Pages in One Dashboard
+            </h1>
+            <p className="mt-4 max-w-2xl text-lg text-slate-300">
+              Track Atlassian-compatible status pages, outages, degraded components and planned maintenance without an account. Add services, refresh every 60 seconds and share your dashboard.
+            </p>
+            <div className="mt-6 flex flex-wrap gap-3">
               <button
-                key={example.url}
+                type="button"
+                onClick={handleQuickAddClick}
+                disabled={isPreparingAddFlow || isAddingPage}
+                className="rounded-xl bg-emerald-400 px-6 py-3 font-semibold text-[#042416] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Create Your Free Status Dashboard
+              </button>
+              <button
                 type="button"
                 onClick={() => {
-                  void handleAddExamplePage(example.url)
+                  void handleAddAllExamples()
                 }}
                 disabled={isAddingPage}
-                className="flex w-full items-center justify-between rounded-xl border border-slate-700 bg-slate-900/40 px-4 py-3 text-left text-sm text-slate-200 transition hover:border-emerald-500/60 disabled:cursor-not-allowed disabled:opacity-60"
+                className="rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-6 py-3 font-semibold text-emerald-300 transition hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                <span>{example.name}</span>
-                <span className="text-emerald-300">Add</span>
+                Add 3 example statuses
               </button>
-            ))}
+            </div>
           </div>
-        </div>
-      </section>
+          <div className="rounded-2xl border border-slate-700/70 bg-[#0b1310] p-4">
+            <h2 className="text-lg font-semibold text-slate-100">Start fast</h2>
+            <ol className="mt-3 space-y-3 text-sm text-slate-300">
+              <li><strong className="text-emerald-300">1.</strong> Paste a status page URL.</li>
+              <li><strong className="text-emerald-300">2.</strong> Choose components to monitor.</li>
+              <li><strong className="text-emerald-300">3.</strong> Share the ready dashboard.</li>
+            </ol>
+            <div className="mt-5 space-y-2">
+              {EXAMPLE_STATUS_PAGES.map((example) => (
+                <button
+                  key={example.url}
+                  type="button"
+                  onClick={() => {
+                    void handleAddExamplePage(example.url)
+                  }}
+                  disabled={isAddingPage || isPreparingAddFlow}
+                  className="flex w-full items-center justify-between rounded-xl border border-slate-700 bg-slate-900/40 px-4 py-3 text-left text-sm text-slate-200 transition hover:border-emerald-500/60 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  <span>{example.name}</span>
+                  <span className="text-emerald-300">Add</span>
+                </button>
+              ))}
+            </div>
+            <form className="mt-4 space-y-3" onSubmit={handleQuickUrlSubmit}>
+              <label className="block text-sm font-semibold uppercase tracking-[0.08em] text-slate-300" htmlFor="quick-status-page-url">
+                Custom status page URL
+              </label>
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <input
+                  id="quick-status-page-url"
+                  type="url"
+                  value={quickUrlDraft}
+                  onChange={(event) => setQuickUrlDraft(event.target.value)}
+                  placeholder="https://status.example.com"
+                  className="min-w-0 flex-1 rounded-xl border border-slate-600/80 bg-[#0f1714] px-4 py-3 text-sm text-slate-100 outline-none transition focus:border-emerald-400"
+                  required
+                />
+                <button
+                  type="submit"
+                  disabled={isAddingPage || isPreparingAddFlow}
+                  className="rounded-xl bg-emerald-400 px-5 py-3 text-sm font-semibold text-[#042416] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {isPreparingAddFlow ? 'Opening...' : 'Add'}
+                </button>
+              </div>
+              <p className="text-xs text-slate-400">After validation, the detailed settings modal opens automatically.</p>
+            </form>
+          </div>
+        </section>
+      ) : null}
 
       {pages.length === 0 ? (
         <section className="mx-auto mt-6 max-w-2xl rounded-2xl border border-dashed border-slate-500/60 bg-[#141d1a]/70 p-6 text-center sm:p-8">
