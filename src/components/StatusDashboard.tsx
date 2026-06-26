@@ -30,6 +30,7 @@ export type StatusDashboardHandle = {
 type StatusDashboardProps = {
   pages: StoredStatusPage[]
   refreshToken: number
+  hideEmptyState?: boolean
   onPagesChange: (pages: StoredStatusPage[]) => void
   onOverallIndicatorChange: (indicator: AtlassianIndicator, incidentPageCount: number) => void
 }
@@ -76,6 +77,7 @@ function formatComponentStatus(status: string): string {
 export const StatusDashboard = forwardRef<StatusDashboardHandle, StatusDashboardProps>(function StatusDashboard({
   pages,
   refreshToken,
+  hideEmptyState = false,
   onPagesChange,
   onOverallIndicatorChange,
 }, ref) {
@@ -782,7 +784,7 @@ export const StatusDashboard = forwardRef<StatusDashboardHandle, StatusDashboard
 
   return (
     <main className="mx-auto w-full max-w-[1480px] px-4 py-4 sm:px-6 sm:py-6 md:px-8 md:py-8">
-      {pages.length === 0 ? (
+      {pages.length === 0 && !hideEmptyState ? (
         <section className="mx-auto mt-6 max-w-2xl rounded-2xl border border-dashed border-slate-500/60 bg-[#141d1a]/70 p-6 text-center sm:mt-12 sm:p-10">
           <h2 className="text-3xl font-semibold text-slate-100 sm:text-4xl">No monitoring configured</h2>
           <p className="mx-auto mt-4 max-w-lg text-lg text-slate-300 sm:text-xl">
@@ -808,14 +810,22 @@ export const StatusDashboard = forwardRef<StatusDashboardHandle, StatusDashboard
               + Add Sample GitHub Status
             </button>
           </div>
+          <button
+            type="button"
+            onClick={handleQuickAddClick}
+            disabled={isPreparingAddFlow || isAddingPage}
+            className="mt-5 text-sm font-medium text-slate-400 underline decoration-slate-600 underline-offset-4 transition hover:text-slate-200 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            Add your own status page link and configure the name, URL, and monitored components.
+          </button>
           {addError ? <p className="mt-4 text-sm text-rose-300">{addError}</p> : null}
         </section>
-      ) : (
+      ) : pages.length > 0 ? (
         <>
           <section className="status-dashboard-grid">{cards}</section>
           {addError ? <p className="mt-6 text-sm text-rose-300">{addError}</p> : null}
         </>
-      )}
+      ) : null}
 
       <dialog
         ref={urlModalRef}

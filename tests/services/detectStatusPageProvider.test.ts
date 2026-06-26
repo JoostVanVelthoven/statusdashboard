@@ -143,18 +143,20 @@ describe('detectStatusPageProvider (Atlassian)', () => {
         })
       }
       if (input.endsWith('/v3/components.json')) {
-        return createJsonResponse([
-          {
-            id: 'group',
-            name: 'Platform',
-            status: 'PARTIALOUTAGE',
-            isParent: true,
-            children: [
-              { id: 'api', name: 'API', status: 'PARTIALOUTAGE', isParent: false },
-            ],
-          },
-          { id: 'website', name: 'Website', status: 'OPERATIONAL', isParent: false },
-        ])
+        return createJsonResponse({
+          components: [
+            {
+              id: 'group',
+              name: 'Platform',
+              status: 'PARTIALOUTAGE',
+              isParent: true,
+              children: [
+                { id: 'api', name: 'API', status: 'PARTIALOUTAGE', isParent: false },
+              ],
+            },
+            { id: 'website', name: 'Website', status: 'OPERATIONAL', isParent: false },
+          ],
+        })
       }
 
       throw new Error(`Unexpected URL: ${input}`)

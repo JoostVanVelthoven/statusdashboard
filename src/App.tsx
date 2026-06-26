@@ -121,6 +121,10 @@ export default function App() {
   const pagesRef = useRef(pages)
   const dashboardRef = useRef<StatusDashboardHandle | null>(null)
   const processedShareHashesRef = useRef(new Set<string>())
+  const [isResolvingSharedDashboardLink, setIsResolvingSharedDashboardLink] = useState(() => {
+    const rawHash = location.hash.trim()
+    return Boolean(rawHash && rawHash !== '#')
+  })
 
   const isDashboardRoute = location.pathname === '/'
   const effectiveOverallIndicator =
@@ -269,6 +273,7 @@ export default function App() {
     }
 
     processedShareHashesRef.current.add(rawHash)
+    setIsResolvingSharedDashboardLink(true)
 
     const mergeSharedPages = async () => {
       let shouldClearHash = false
@@ -306,6 +311,7 @@ export default function App() {
         if (shouldClearHash) {
           clearWindowHash()
         }
+        setIsResolvingSharedDashboardLink(false)
       }
     }
 
@@ -422,6 +428,7 @@ export default function App() {
                 ref={dashboardRef}
                 pages={pages}
                 refreshToken={refreshToken}
+                hideEmptyState={isResolvingSharedDashboardLink}
                 onPagesChange={handlePagesChange}
                 onOverallIndicatorChange={handleOverallIndicatorChange}
               />
