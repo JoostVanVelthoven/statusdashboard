@@ -835,7 +835,7 @@ export const StatusDashboard = forwardRef<StatusDashboardHandle, StatusDashboard
   )
 
   return (
-    <main className="mx-auto w-full max-w-[1480px] px-4 py-4 sm:px-6 sm:py-6 md:px-8 md:py-8">
+    <main className="status-dashboard-shell mx-auto w-full max-w-[1480px] px-4 py-4 sm:px-6 sm:py-6 md:px-8 md:py-8">
       {pages.length === 0 ? (
         <section className="grid gap-6 rounded-3xl border border-emerald-500/20 bg-[#111b17] p-6 shadow-2xl shadow-black/20 md:grid-cols-[1.15fr_0.85fr] md:p-8">
           <div>

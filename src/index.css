@@ -388,3 +388,98 @@ body {
     background-position: -100% 0;
   }
 }
+
+@media (min-width: 1920px) and (min-height: 900px) {
+  .app-chrome-inner,
+  .status-dashboard-shell {
+    max-width: min(92vw, 2360px);
+  }
+
+  .app-footer-inner {
+    max-width: min(92vw, 2560px);
+  }
+
+  .status-dashboard-shell {
+    padding: clamp(2rem, 2.4vw, 4rem);
+  }
+
+  .status-dashboard-grid {
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 500px), 1fr));
+    gap: clamp(1.5rem, 1.35vw, 2.5rem);
+  }
+
+  .status-card {
+    min-height: clamp(210px, 12vw, 300px);
+    border-radius: 28px;
+    padding: clamp(1.6rem, 1.45vw, 2.4rem);
+  }
+
+  .status-card__header {
+    gap: 1.4rem;
+    margin-bottom: 1.4rem;
+  }
+
+  .status-card__name {
+    font-size: clamp(1.55rem, 0.9vw, 2.15rem);
+  }
+
+  .status-card__signal {
+    width: clamp(2.2rem, 1.5vw, 3rem);
+    height: clamp(2.2rem, 1.5vw, 3rem);
+  }
+
+  .status-card__signal-core {
+    width: clamp(0.7rem, 0.5vw, 1rem);
+    height: clamp(0.7rem, 0.5vw, 1rem);
+  }
+
+  .status-card__body {
+    gap: 1.2rem;
+  }
+
+  .status-card__rail {
+    width: 5px;
+    height: clamp(4rem, 3.4vw, 5.5rem);
+  }
+
+  .status-card__headline {
+    font-size: clamp(2rem, 1.45vw, 3rem);
+  }
+
+  .status-card__description {
+    margin-top: 0.75rem;
+    font-size: clamp(1.15rem, 0.72vw, 1.5rem);
+  }
+
+  .status-card__chips {
+    margin-top: 1rem;
+    gap: 0.6rem;
+  }
+
+  .status-card__chip,
+  .status-card__planned-pill,
+  .status-card__page-link,
+  .status-card__error {
+    font-size: clamp(0.95rem, 0.55vw, 1.15rem);
+  }
+
+  .status-card__chip,
+  .status-card__planned-pill {
+    padding: 0.25rem 0.75rem;
+  }
+
+  .status-card__page-link {
+    padding-top: 1.3rem;
+  }
+}
+
+@media (min-width: 3000px) and (min-height: 1600px) {
+  .app-chrome-inner,
+  .status-dashboard-shell {
+    max-width: min(94vw, 3200px);
+  }
+
+  .status-dashboard-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
