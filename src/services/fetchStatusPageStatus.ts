@@ -13,6 +13,10 @@ import type {
 
 const REQUEST_TIMEOUT_MS = 10000
 
+type FetchStatusPageStatusOptions = {
+  signal?: AbortSignal
+}
+
 function toReadableError(error: unknown): Error {
   if (error instanceof DOMException && error.name === 'AbortError') {
     return new Error('Timeout while fetching status.')
@@ -29,9 +33,16 @@ function toReadableError(error: unknown): Error {
   return new Error('Unknown error while fetching status.')
 }
 
-async function fetchJson<T>(url: string): Promise<T> {
+async function fetchJson<T>(url: string, signal?: AbortSignal): Promise<T> {
   const abortController = new AbortController()
   const timeoutId = window.setTimeout(() => abortController.abort(), REQUEST_TIMEOUT_MS)
+  const handleAbort = () => abortController.abort()
+
+  if (signal?.aborted) {
+    abortController.abort()
+  } else {
+    signal?.addEventListener('abort', handleAbort, { once: true })
+  }
 
   try {
     const response = await fetch(url, {
@@ -51,6 +62,7 @@ async function fetchJson<T>(url: string): Promise<T> {
     throw toReadableError(error)
   } finally {
     window.clearTimeout(timeoutId)
+    signal?.removeEventListener('abort', handleAbort)
   }
 }
 
@@ -457,13 +469,17 @@ function mapMonitoredComponentsToStatus(
   }
 }
 
-export async function fetchStatusPageStatus(page: StoredStatusPage): Promise<StatusFetchResult> {
+export async function fetchStatusPageStatus(
+  page: StoredStatusPage,
+  options: FetchStatusPageStatusOptions = {},
+): Promise<StatusFetchResult> {
   const startedAt = Date.now()
+  const { signal } = options
 
   if (page.provider === 'instatus') {
     const [summary, components] = await Promise.all([
-      fetchJson<InstatusSummaryPayload>(page.statusApiUrl),
-      page.summaryApiUrl ? fetchJson<unknown>(page.summaryApiUrl) : Promise.resolve([]),
+      fetchJson<InstatusSummaryPayload>(page.statusApiUrl, signal),
+      page.summaryApiUrl ? fetchJson<unknown>(page.summaryApiUrl, signal) : Promise.resolve([]),
     ])
     return mapInstatusStatus(page, summary, components, Date.now() - startedAt)
   }
@@ -475,8 +491,8 @@ export async function fetchStatusPageStatus(page: StoredStatusPage): Promise<Sta
 
   if (page.summaryApiUrl) {
     const [summaryResult, scheduledMaintenancesResult] = await Promise.allSettled([
-      fetchJson<AtlassianSummaryPayload>(page.summaryApiUrl),
-      fetchJson<AtlassianScheduledMaintenancesPayload>(scheduledMaintenancesApiUrl),
+      fetchJson<AtlassianSummaryPayload>(page.summaryApiUrl, signal),
+      fetchJson<AtlassianScheduledMaintenancesPayload>(scheduledMaintenancesApiUrl, signal),
     ])
     hasScheduledMaintenanceAttempt = true
 
@@ -508,6 +524,7 @@ export async function fetchStatusPageStatus(page: StoredStatusPage): Promise<Sta
     try {
       const scheduledMaintenancesPayload = await fetchJson<AtlassianScheduledMaintenancesPayload>(
         scheduledMaintenancesApiUrl,
+        signal,
       )
       plannedMaintenances = extractPlannedMaintenancesFromPayload(scheduledMaintenancesPayload, monitoredIds)
     } catch {
@@ -515,6 +532,6 @@ export async function fetchStatusPageStatus(page: StoredStatusPage): Promise<Sta
     }
   }
 
-  const statusPayload = await fetchJson<AtlassianStatusPayload>(page.statusApiUrl)
+  const statusPayload = await fetchJson<AtlassianStatusPayload>(page.statusApiUrl, signal)
   return mapPayloadToStatus(page.id, statusPayload, Date.now() - startedAt, plannedMaintenances)
 }

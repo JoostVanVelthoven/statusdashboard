@@ -75,6 +75,35 @@ describe('fetchStatusPageStatus (Atlassian)', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2)
   })
 
+  it('aborts in-flight status requests when the caller aborts', async () => {
+    const page = createPage({ monitoredComponentIds: [], summaryApiUrl: undefined })
+    const abortController = new AbortController()
+
+    fetchMock.mockImplementation(
+      async (_input: string, init?: RequestInit) =>
+        new Promise((_resolve, reject) => {
+          const signal = init?.signal
+
+          if (signal?.aborted) {
+            reject(new DOMException('Aborted', 'AbortError'))
+            return
+          }
+
+          signal?.addEventListener(
+            'abort',
+            () => reject(new DOMException('Aborted', 'AbortError')),
+            { once: true },
+          )
+        }),
+    )
+
+    const request = fetchStatusPageStatus(page, { signal: abortController.signal })
+    abortController.abort()
+
+    await expect(request).rejects.toThrow('Timeout while fetching status.')
+    expect(fetchMock).toHaveBeenCalled()
+  })
+
   it('shows degraded components from summary.json when no explicit selection exists', async () => {
     const page = createPage({ monitoredComponentIds: [] })
 

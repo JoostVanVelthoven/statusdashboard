@@ -27,6 +27,22 @@ const DEFAULT_CHROME_STATE: MonitorChromeState = {
   title: 'Status Page Aggregator - Monitor Multiple Status Pages',
 }
 
+const MAX_PROCESSED_SHARE_HASHES = 20
+
+function rememberProcessedShareHash(processedShareHashes: Set<string>, rawHash: string): void {
+  processedShareHashes.add(rawHash)
+
+  while (processedShareHashes.size > MAX_PROCESSED_SHARE_HASHES) {
+    const oldestHash = processedShareHashes.values().next().value
+
+    if (typeof oldestHash !== 'string') {
+      return
+    }
+
+    processedShareHashes.delete(oldestHash)
+  }
+}
+
 function getMonitorChromeState(indicator: AtlassianIndicator): MonitorChromeState {
   switch (indicator) {
     case 'none':
@@ -268,7 +284,7 @@ export default function App() {
       return
     }
 
-    processedShareHashesRef.current.add(rawHash)
+    rememberProcessedShareHash(processedShareHashesRef.current, rawHash)
 
     const mergeSharedPages = async () => {
       let shouldClearHash = false
@@ -277,6 +293,7 @@ export default function App() {
         const payload = await parseDashboardShareHash(rawHash)
 
         if (!payload) {
+          processedShareHashesRef.current.delete(rawHash)
           return
         }
 
@@ -300,6 +317,7 @@ export default function App() {
           handlePagesChange(mergeResult.pages)
         }
       } catch (error) {
+        processedShareHashesRef.current.delete(rawHash)
         shouldClearHash = true
         console.error('[App] invalid or failed dashboard share hash', error)
       } finally {

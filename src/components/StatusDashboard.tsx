@@ -89,6 +89,7 @@ export const StatusDashboard = forwardRef<StatusDashboardHandle, StatusDashboard
   const acknowledgedIndicatorsRef = useRef<AcknowledgedIndicatorByPageId>({})
   const indicatorsByPageIdRef = useRef<IndicatorByPageId>({})
   const pollGenerationRef = useRef(0)
+  const activePollAbortControllerRef = useRef<AbortController | null>(null)
   const [addError, setAddError] = useState<string | null>(null)
   const [isAddingPage, setIsAddingPage] = useState(false)
   const [isPreparingAddFlow, setIsPreparingAddFlow] = useState(false)
@@ -136,16 +137,23 @@ export const StatusDashboard = forwardRef<StatusDashboardHandle, StatusDashboard
 
   const pollStatuses = useCallback(async () => {
     if (!navigator.onLine) {
+      activePollAbortControllerRef.current?.abort()
       return
     }
 
     const pollGeneration = ++pollGenerationRef.current
+    activePollAbortControllerRef.current?.abort()
+    const abortController = new AbortController()
+    activePollAbortControllerRef.current = abortController
 
     if (pages.length === 0) {
       setStatusByPageId({})
       acknowledgedIndicatorsRef.current = {}
       indicatorsByPageIdRef.current = {}
       onOverallIndicatorChange('unknown', 0)
+      if (activePollAbortControllerRef.current === abortController) {
+        activePollAbortControllerRef.current = null
+      }
       return
     }
 
@@ -163,7 +171,13 @@ export const StatusDashboard = forwardRef<StatusDashboardHandle, StatusDashboard
       return next
     })
 
-    const result = await Promise.allSettled(pages.map((page) => fetchStatusPageStatus(page)))
+    const result = await Promise.allSettled(
+      pages.map((page) => fetchStatusPageStatus(page, { signal: abortController.signal })),
+    )
+
+    if (activePollAbortControllerRef.current === abortController) {
+      activePollAbortControllerRef.current = null
+    }
 
     if (pollGeneration !== pollGenerationRef.current || !navigator.onLine) {
       return
@@ -231,6 +245,8 @@ export const StatusDashboard = forwardRef<StatusDashboardHandle, StatusDashboard
   useEffect(() => {
     const handleOffline = () => {
       pollGenerationRef.current += 1
+      activePollAbortControllerRef.current?.abort()
+      activePollAbortControllerRef.current = null
       setStatusByPageId({})
       acknowledgedIndicatorsRef.current = {}
       indicatorsByPageIdRef.current = {}
@@ -252,6 +268,12 @@ export const StatusDashboard = forwardRef<StatusDashboardHandle, StatusDashboard
       window.removeEventListener('online', handleOnline)
     }
   }, [onOverallIndicatorChange, pollStatuses])
+
+  useEffect(() => {
+    return () => {
+      activePollAbortControllerRef.current?.abort()
+    }
+  }, [])
 
   useEffect(() => {
     const kickoffId = window.setTimeout(() => {
