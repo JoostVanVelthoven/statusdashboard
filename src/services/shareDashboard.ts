@@ -6,6 +6,10 @@ const SHARE_SCHEMA_VERSION = 3
 const BASE64_URL_PATTERN = /^[A-Za-z0-9_-]+$/
 const HTTPS_PREFIX = 'https://'
 
+type BuildDashboardShareOptions = {
+  signal?: AbortSignal
+}
+
 type SharedSelectionMode = 'i' | 'e'
 type CompactSharedStatusPageEntry = [url: string, mode: SharedSelectionMode, componentIdsCsv: string]
 type CompactDashboardSharePayload = [version: number, pages: CompactSharedStatusPageEntry[]]
@@ -257,8 +261,12 @@ function fromCompactPayload(raw: unknown): DashboardSharePayload {
   }
 }
 
-export async function buildDashboardSharePayload(pages: StoredStatusPage[]): Promise<DashboardSharePayload> {
+export async function buildDashboardSharePayload(
+  pages: StoredStatusPage[],
+  options: BuildDashboardShareOptions = {},
+): Promise<DashboardSharePayload> {
   const pagesByUrl = new Map<string, string[]>()
+  const { signal } = options
 
   for (const page of pages) {
     let normalizedUrl: string
@@ -277,7 +285,9 @@ export async function buildDashboardSharePayload(pages: StoredStatusPage[]): Pro
   }
 
   const urls = Array.from(pagesByUrl.keys())
-  const detections = await Promise.allSettled(urls.map((url) => detectStatusPageProvider(url)))
+  const detections = await Promise.allSettled(
+    urls.map((url) => detectStatusPageProvider(url, { signal })),
+  )
   const detectionByUrl = new Map<string, ProviderDetectionResult>()
 
   for (const [index, detectionResult] of detections.entries()) {
@@ -321,8 +331,11 @@ export async function encodeDashboardSharePayload(payload: DashboardSharePayload
   return gzipText(JSON.stringify(toCompactPayload(normalizedPages)))
 }
 
-export async function buildDashboardShareHash(pages: StoredStatusPage[]): Promise<string> {
-  return encodeDashboardSharePayload(await buildDashboardSharePayload(pages))
+export async function buildDashboardShareHash(
+  pages: StoredStatusPage[],
+  options: BuildDashboardShareOptions = {},
+): Promise<string> {
+  return encodeDashboardSharePayload(await buildDashboardSharePayload(pages, options))
 }
 
 export async function decodeDashboardSharePayload(

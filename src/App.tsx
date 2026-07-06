@@ -137,6 +137,7 @@ export default function App() {
   const pagesRef = useRef(pages)
   const dashboardRef = useRef<StatusDashboardHandle | null>(null)
   const processedShareHashesRef = useRef(new Set<string>())
+  const activeShareAbortControllerRef = useRef<AbortController | null>(null)
 
   const isDashboardRoute = location.pathname === '/'
   const effectiveOverallIndicator =
@@ -181,8 +182,8 @@ export default function App() {
     return shareUrl.toString()
   }, [])
 
-  const buildShareLink = useCallback(async () => {
-    const hashPayload = await buildDashboardShareHash(pages)
+  const buildShareLink = useCallback(async (signal?: AbortSignal) => {
+    const hashPayload = await buildDashboardShareHash(pages, { signal })
     const shareUrl = new URL(window.location.href)
     shareUrl.pathname = '/'
     shareUrl.search = ''
@@ -191,8 +192,13 @@ export default function App() {
   }, [pages])
 
   const handleShareDashboard = useCallback(async (option: ShareOption) => {
+    activeShareAbortControllerRef.current?.abort()
+    const abortController = new AbortController()
+    activeShareAbortControllerRef.current = abortController
+
     try {
-      const shareLink = pages.length === 0 ? buildRawDashboardLink() : await buildShareLink()
+      const shareLink =
+        pages.length === 0 ? buildRawDashboardLink() : await buildShareLink(abortController.signal)
 
       if (option === 'copy') {
         if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
@@ -240,9 +246,23 @@ export default function App() {
       window.open('slack://open', '_blank', 'noopener,noreferrer')
       window.open('https://app.slack.com/client', '_blank', 'noopener,noreferrer')
     } catch (error) {
+      if (abortController.signal.aborted) {
+        return
+      }
+
       console.error('[App] share dashboard failed', error)
+    } finally {
+      if (activeShareAbortControllerRef.current === abortController) {
+        activeShareAbortControllerRef.current = null
+      }
     }
   }, [buildRawDashboardLink, buildShareLink, hasNativeShare, pages])
+
+  useEffect(() => {
+    return () => {
+      activeShareAbortControllerRef.current?.abort()
+    }
+  }, [])
 
   useEffect(() => {
     pagesRef.current = pages

@@ -174,6 +174,50 @@ describe('shareDashboard payload', () => {
     expect(payload.pages[0].selectionMode).toBe('e')
     expect(payload.pages[0].monitoredComponentIds).toEqual(['component-100'])
   })
+
+  it('passes abort signals to status page detection while building share payloads', async () => {
+    const abortController = new AbortController()
+    let abortedRequestCount = 0
+
+    fetchMock.mockImplementation(
+      async (_input: string, init?: RequestInit) =>
+        new Promise((_resolve, reject) => {
+          const signal = init?.signal
+
+          if (signal?.aborted) {
+            abortedRequestCount += 1
+            reject(new DOMException('Aborted', 'AbortError'))
+            return
+          }
+
+          signal?.addEventListener(
+            'abort',
+            () => {
+              abortedRequestCount += 1
+              reject(new DOMException('Aborted', 'AbortError'))
+            },
+            { once: true },
+          )
+        }),
+    )
+
+    const request = buildDashboardSharePayload([createStoredPage()], {
+      signal: abortController.signal,
+    })
+    abortController.abort()
+
+    await expect(request).resolves.toEqual({
+      v: 3,
+      pages: [
+        {
+          url: 'https://status.example.com',
+          selectionMode: 'i',
+          monitoredComponentIds: ['api'],
+        },
+      ],
+    })
+    expect(abortedRequestCount).toBeGreaterThan(0)
+  })
 })
 
 describe('mergeResolvedSharedPages', () => {
