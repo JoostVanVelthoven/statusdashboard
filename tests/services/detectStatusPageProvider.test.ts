@@ -110,6 +110,36 @@ describe('detectStatusPageProvider (Atlassian)', () => {
     expect(result.availableComponents).toEqual([])
   })
 
+  it('aborts provider detection requests when the caller aborts', async () => {
+    const abortController = new AbortController()
+
+    fetchMock.mockImplementation(
+      async (_input: string, init?: RequestInit) =>
+        new Promise((_resolve, reject) => {
+          const signal = init?.signal
+
+          if (signal?.aborted) {
+            reject(new DOMException('Aborted', 'AbortError'))
+            return
+          }
+
+          signal?.addEventListener(
+            'abort',
+            () => reject(new DOMException('Aborted', 'AbortError')),
+            { once: true },
+          )
+        }),
+    )
+
+    const request = detectStatusPageProvider('https://status.example.com', {
+      signal: abortController.signal,
+    })
+    abortController.abort()
+
+    await expect(request).rejects.toThrow('No supported status page found.')
+    expect(fetchMock).toHaveBeenCalled()
+  })
+
   it('throws when status.json is not supported', async () => {
     fetchMock.mockImplementation(async (input: string) => {
       if (input.endsWith('/api/v2/status.json')) {

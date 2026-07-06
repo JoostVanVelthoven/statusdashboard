@@ -9,6 +9,10 @@ import type {
 
 const REQUEST_TIMEOUT_MS = 10000
 
+type DetectStatusPageProviderOptions = {
+  signal?: AbortSignal
+}
+
 function toReadableError(error: unknown): Error {
   if (error instanceof DOMException && error.name === 'AbortError') {
     return new Error('Timeout while fetching status page.')
@@ -25,9 +29,16 @@ function toReadableError(error: unknown): Error {
   return new Error('Unknown error while fetching status page.')
 }
 
-async function fetchJson<T>(url: string): Promise<T> {
+async function fetchJson<T>(url: string, signal?: AbortSignal): Promise<T> {
   const abortController = new AbortController()
   const timeoutId = window.setTimeout(() => abortController.abort(), REQUEST_TIMEOUT_MS)
+  const handleAbort = () => abortController.abort()
+
+  if (signal?.aborted) {
+    abortController.abort()
+  } else {
+    signal?.addEventListener('abort', handleAbort, { once: true })
+  }
 
   try {
     const response = await fetch(url, {
@@ -47,6 +58,7 @@ async function fetchJson<T>(url: string): Promise<T> {
     throw toReadableError(error)
   } finally {
     window.clearTimeout(timeoutId)
+    signal?.removeEventListener('abort', handleAbort)
   }
 }
 
@@ -157,14 +169,18 @@ export function normalizeStatusPageUrl(rawUrl: string): string {
   return normalizedPath ? `${parsedUrl.origin}${normalizedPath}` : parsedUrl.origin
 }
 
-export async function detectStatusPageProvider(rawBaseUrl: string): Promise<ProviderDetectionResult> {
+export async function detectStatusPageProvider(
+  rawBaseUrl: string,
+  options: DetectStatusPageProviderOptions = {},
+): Promise<ProviderDetectionResult> {
   const baseUrl = normalizeStatusPageUrl(rawBaseUrl)
+  const { signal } = options
   const statusApiUrl = `${baseUrl}/api/v2/status.json`
   const summaryApiUrl = `${baseUrl}/api/v2/summary.json`
 
   const [statusResult, summaryResult] = await Promise.allSettled([
-    fetchJson<AtlassianStatusPayload>(statusApiUrl),
-    fetchJson<AtlassianSummaryPayload>(summaryApiUrl),
+    fetchJson<AtlassianStatusPayload>(statusApiUrl, signal),
+    fetchJson<AtlassianSummaryPayload>(summaryApiUrl, signal),
   ])
 
   if (statusResult.status === 'fulfilled' && isAtlassianStatusPayload(statusResult.value)) {
@@ -187,8 +203,8 @@ export async function detectStatusPageProvider(rawBaseUrl: string): Promise<Prov
   const instatusSummaryApiUrl = `${baseUrl}/v3/summary.json`
   const instatusComponentsApiUrl = `${baseUrl}/v3/components.json`
   const [instatusSummaryResult, instatusComponentsResult] = await Promise.allSettled([
-    fetchJson<InstatusSummaryPayload>(instatusSummaryApiUrl),
-    fetchJson<unknown>(instatusComponentsApiUrl),
+    fetchJson<InstatusSummaryPayload>(instatusSummaryApiUrl, signal),
+    fetchJson<unknown>(instatusComponentsApiUrl, signal),
   ])
 
   if (

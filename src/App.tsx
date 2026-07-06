@@ -285,6 +285,7 @@ export default function App() {
     }
 
     rememberProcessedShareHash(processedShareHashesRef.current, rawHash)
+    const abortController = new AbortController()
 
     const mergeSharedPages = async () => {
       let shouldClearHash = false
@@ -306,7 +307,9 @@ export default function App() {
 
         const resolvedPages = await Promise.all(
           payload.pages.map(async (page) => ({
-            detection: await detectStatusPageProvider(page.url),
+            detection: await detectStatusPageProvider(page.url, {
+              signal: abortController.signal,
+            }),
             selectionMode: page.selectionMode,
             monitoredComponentIds: page.monitoredComponentIds,
           })),
@@ -318,6 +321,9 @@ export default function App() {
         }
       } catch (error) {
         processedShareHashesRef.current.delete(rawHash)
+        if (abortController.signal.aborted) {
+          return
+        }
         shouldClearHash = true
         console.error('[App] invalid or failed dashboard share hash', error)
       } finally {
@@ -328,6 +334,10 @@ export default function App() {
     }
 
     void mergeSharedPages()
+
+    return () => {
+      abortController.abort()
+    }
   }, [handlePagesChange, location.hash])
 
   useEffect(() => {

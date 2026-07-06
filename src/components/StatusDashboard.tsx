@@ -367,6 +367,7 @@ export const StatusDashboard = forwardRef<StatusDashboardHandle, StatusDashboard
     }
 
     let isCancelled = false
+    const abortController = new AbortController()
 
     const loadComponents = async () => {
       setIsLoadingComponents(true)
@@ -374,7 +375,9 @@ export const StatusDashboard = forwardRef<StatusDashboardHandle, StatusDashboard
       setComponentSearch('')
 
       try {
-        const detection = await detectStatusPageProvider(editingPage.url)
+        const detection = await detectStatusPageProvider(editingPage.url, {
+          signal: abortController.signal,
+        })
         const components = detection.availableComponents
 
         if (isCancelled) {
@@ -416,6 +419,7 @@ export const StatusDashboard = forwardRef<StatusDashboardHandle, StatusDashboard
 
     return () => {
       isCancelled = true
+      abortController.abort()
     }
   }, [editingPage, isEditModalOpen])
 
