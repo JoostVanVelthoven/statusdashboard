@@ -8,6 +8,8 @@ compatible status pages, tracks incidents and planned maintenance, supports
 component-level selection, and can share a dashboard configuration through a
 compressed URL.
 
+![example](example.png)
+
 ## Transparency and auditability
 
 > **AI-assisted project:** this codebase was substantially generated and
