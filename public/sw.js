@@ -1,6 +1,6 @@
-const CACHE_NAME = 'status-dashboard-v3'
+const CACHE_NAME = 'status-dashboard-v4'
 const INDEX_URL = '/index.html'
-const APP_SHELL = [INDEX_URL, '/manifest.webmanifest', '/favicon.svg', '/icons.svg']
+const APP_SHELL = [INDEX_URL, '/manifest.json', '/favicon.svg', '/icons.svg']
 const HASHED_ASSET_PATTERN = /^\/assets\/.*-[A-Za-z0-9_-]+\.(?:css|js)$/
 const MESSAGE_PAGE_RELOAD = 'PAGE_RELOAD_REQUIRED'
 const MESSAGE_RELEASE_RELOAD = 'RELEASE_HARD_RELOAD_REQUIRED'
