@@ -1,0 +1,115 @@
+name: Deploy static site
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: static-site-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 25
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run existing tests
+        run: npm run test:run
+
+      - name: Build static site
+        run: npm run build
+
+      - name: Create complete site snapshot
+        id: snapshot
+        shell: bash
+        env:
+          BUILD_OUTPUT: dist
+        run: |
+          set -euo pipefail
+          test -f "$BUILD_OUTPUT/index.html"
+          archive="$RUNNER_TEMP/site.zip"
+          (cd "$BUILD_OUTPUT" && zip -q -r "$archive" .)
+          printf 'archive=%s\n' "$archive" >> "$GITHUB_OUTPUT"
+          printf 'sha256=%s\n' "$(sha256sum "$archive" | cut -d ' ' -f 1)" >> "$GITHUB_OUTPUT"
+
+      - name: Preserve built snapshot
+        uses: actions/upload-artifact@v4
+        with:
+          name: static-site-snapshot
+          path: ${{ steps.snapshot.outputs.archive }}
+          retention-days: 7
+          if-no-files-found: error
+
+      - name: Restore and validate site publish certificate
+        id: credentials
+        shell: bash
+        env:
+          PUBLISH_CERT_PEM_BASE64: ${{ secrets.PUBLISH_CERT_PEM_BASE64 }}
+          PUBLISH_KEY_PEM_BASE64: ${{ secrets.PUBLISH_KEY_PEM_BASE64 }}
+        run: |
+          set -euo pipefail
+          test -n "$PUBLISH_CERT_PEM_BASE64" || { echo "::error::Missing production secret PUBLISH_CERT_PEM_BASE64"; exit 1; }
+          test -n "$PUBLISH_KEY_PEM_BASE64" || { echo "::error::Missing production secret PUBLISH_KEY_PEM_BASE64"; exit 1; }
+          umask 077
+          cert="$RUNNER_TEMP/publish.crt"
+          key="$RUNNER_TEMP/publish.key"
+          printf '%s' "$PUBLISH_CERT_PEM_BASE64" | base64 --decode > "$cert"
+          printf '%s' "$PUBLISH_KEY_PEM_BASE64" | base64 --decode > "$key"
+          chmod 600 "$cert" "$key"
+          openssl x509 -in "$cert" -noout -checkend 86400
+          openssl pkey -in "$key" -noout -check
+          cert_public_key="$(openssl x509 -in "$cert" -pubkey -noout | openssl pkey -pubin -outform DER | sha256sum | cut -d ' ' -f 1)"
+          private_public_key="$(openssl pkey -in "$key" -pubout -outform DER | sha256sum | cut -d ' ' -f 1)"
+          test "$cert_public_key" = "$private_public_key"
+          openssl x509 -in "$cert" -noout -subject -fingerprint -sha256
+          printf 'cert=%s\nkey=%s\n' "$cert" "$key" >> "$GITHUB_OUTPUT"
+
+      - name: Verify permissions and deploy complete snapshot
+        shell: bash
+        env:
+          DEPLOY_URL: ${{ vars.STATIC_HOST_DEPLOY_URL }}
+          DEPLOY_SITE: ${{ vars.STATIC_HOST_DEPLOY_SITE }}
+          ARCHIVE: ${{ steps.snapshot.outputs.archive }}
+          SHA256: ${{ steps.snapshot.outputs.sha256 }}
+          CERT: ${{ steps.credentials.outputs.cert }}
+          KEY: ${{ steps.credentials.outputs.key }}
+        run: |
+          set -euo pipefail
+          test "$DEPLOY_URL" = "https://control.joost.rocks" || { echo "::error::Set production variable STATIC_HOST_DEPLOY_URL to https://control.joost.rocks"; exit 1; }
+          [[ "$DEPLOY_SITE" =~ ^[a-z0-9][a-z0-9-]{0,62}$ ]] || { echo "::error::Missing or invalid production variable STATIC_HOST_DEPLOY_SITE"; exit 1; }
+          test "$DEPLOY_SITE" != "json"
+          options=(--silent --show-error --proto '=https' --tlsv1.2 --connect-timeout 15 --max-time 300)
+          status="$(curl "${options[@]}" -o "$RUNNER_TEMP/permission-response.txt" -w '%{http_code}' -X POST -H "X-Deploy-Site: $DEPLOY_SITE" "$DEPLOY_URL/.deploy")"
+          test "$status" = 401 || { echo "::error::Unauthenticated deploy returned HTTP $status"; exit 1; }
+          status="$(curl "${options[@]}" --cert "$CERT" --key "$KEY" -o "$RUNNER_TEMP/permission-response.txt" -w '%{http_code}' "$DEPLOY_URL/.manage/")"
+          test "$status" = 401 || { echo "::error::Publish certificate has unexpected management access (HTTP $status)"; exit 1; }
+          # Empty invalid ZIP: this request cannot publish content, even if permissions are wrong.
+          status="$(curl "${options[@]}" --cert "$CERT" --key "$KEY" -o "$RUNNER_TEMP/permission-response.txt" -w '%{http_code}' -H 'Content-Type: application/zip' -H 'X-Deploy-Site: json' --data-binary '' "$DEPLOY_URL/.deploy")"
+          test "$status" = 401 || { echo "::error::Publish certificate has unexpected access to another site (HTTP $status)"; exit 1; }
+          status="$(curl "${options[@]}" --cert "$CERT" --key "$KEY" -o "$RUNNER_TEMP/deploy-response.txt" -w '%{http_code}' -H 'Content-Type: application/zip' -H "X-Deploy-Site: $DEPLOY_SITE" -H "X-Content-SHA256: $SHA256" --data-binary "@$ARCHIVE" "$DEPLOY_URL/.deploy")"
+          cat "$RUNNER_TEMP/deploy-response.txt"
+          test "$status" = 201 || { echo "::error::Deploy returned HTTP $status, expected 201"; exit 1; }
+
+      - name: Remove temporary publish credentials
+        if: always()
+        shell: bash
+        run: rm -f "$RUNNER_TEMP/publish.crt" "$RUNNER_TEMP/publish.key"
